@@ -866,7 +866,7 @@ def render_card(ticket):
             {nf_txt}
             {cnpj_txt}
             {anexo_txt}
-            <div class="ticket-meta">{origem_txt}</div>
+            {origem_html}
         </div>
         """,
         unsafe_allow_html=True,
