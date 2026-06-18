@@ -136,7 +136,7 @@ if "usuario" not in st.session_state:
     st.session_state.usuario = None
 
 if "tickets" not in st.session_state:
-    st.session_state.tickets = []
+    st.session_state.tickets = carregar_tickets_nuvem()
 
 if "ticket_aberto" not in st.session_state:
     st.session_state.ticket_aberto = None
