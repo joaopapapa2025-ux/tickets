@@ -21,6 +21,7 @@ USUARIOS = {
         "nome": "João Tadra",
         "setor": "Comercial",
         "email": "comercial1@papapa.com.br",
+        "telefone": "5541984959492",
     },
     "comercial3@papapa.com.br": {
         "senha": "miojo123",
@@ -28,6 +29,7 @@ USUARIOS = {
         "nome": "Ana Christina",
         "setor": "Comercial",
         "email": "comercial3@papapa.com.br",
+        "telefone": "554137976554",
     },
     "comercial5@papapa.com.br": {
         "senha": "miojo123",
@@ -35,6 +37,7 @@ USUARIOS = {
         "nome": "Pedro Born",
         "setor": "Comercial",
         "email": "comercial5@papapa.com.br",
+        "telefone": "554137976885",
     },
     "comercial2@papapa.com.br": {
         "senha": "miojo123",
@@ -42,6 +45,7 @@ USUARIOS = {
         "nome": "João Paulo",
         "setor": "Comercial",
         "email": "comercial2@papapa.com.br",
+        "telefone": "5541992474213",
     },
     "comercial4@papapa.com.br": {
         "senha": "miojo123",
@@ -49,6 +53,7 @@ USUARIOS = {
         "nome": "Rodrigo Sarlo",
         "setor": "Comercial",
         "email": "comercial4@papapa.com.br",
+        "telefone": "5541985027025",
     },
     "posvendas1@papapa.com.br": {
         "senha": "miojo123",
@@ -56,6 +61,7 @@ USUARIOS = {
         "nome": "Thiago Cabral",
         "setor": "Pós-vendas",
         "email": "posvendas1@papapa.com.br",
+        "telefone": "5541984703249",
     },
     "posvendas2@papapa.com.br": {
         "senha": "miojo123",
@@ -63,6 +69,7 @@ USUARIOS = {
         "nome": "Bernardo Dallegrave",
         "setor": "Pós-vendas",
         "email": "posvendas2@papapa.com.br",
+        "telefone": "5541984703249",
     },
     "logistica4@papapa.com.br": {
         "senha": "miojo123",
@@ -70,6 +77,7 @@ USUARIOS = {
         "nome": "Ronaldo Leidens",
         "setor": "Logística",
         "email": "logistica4@papapa.com.br",
+        "telefone": "5541991917922",
     },
     "contasareceber@papapa.com.br": {
         "senha": "miojo123",
@@ -77,6 +85,7 @@ USUARIOS = {
         "nome": "Luan Dornelis",
         "setor": "Financeiro",
         "email": "contasareceber@papapa.com.br",
+        "telefone": "5541996071551",
     },
     "rh@papapa.com.br": {
         "senha": "miojo123",
@@ -84,6 +93,7 @@ USUARIOS = {
         "nome": "Maria Julia",
         "setor": "RH",
         "email": "rh@papapa.com.br",
+        "telefone": "5541984402434",
     },
     "crm@papapa.com.br": {
         "senha": "miojo123",
@@ -91,6 +101,7 @@ USUARIOS = {
         "nome": "Victoria Gobbo",
         "setor": "Marketing",
         "email": "crm@papapa.com.br",
+        "telefone": "5541992761230",
     },
 }
 
