@@ -827,6 +827,7 @@ def render_card(ticket):
     solicitante = html.escape(ticket["solicitante"])
     criado_em = html.escape(ticket.get("criado_em", ""))
     nf_pedido = html.escape(ticket.get("nf_pedido", ""))
+    cnpj = html.escape(ticket.get("cnpj", ""))
 
     origem_txt = ""
     if ticket.get("ticket_origem_id"):
