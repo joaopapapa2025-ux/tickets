@@ -964,7 +964,7 @@ def painel_ticket():
 
         st.markdown("#### Resolver e encaminhar")
 
-        with st.expander("Encaminhar para outro setor após resolver"):
+        with st.expander("Encaminhar para outro setor após resolver", expanded=True):
             novo_setor = st.selectbox("Novo setor destino", SETORES, key=f"enc_setor_{ticket['id']}")
             novo_resp = st.selectbox("Novo responsável", lista_responsaveis(novo_setor), key=f"enc_resp_{ticket['id']}")
             novo_titulo = st.text_input("Título do novo ticket", value=f"Continuação de {formatar_numero_ticket(ticket['id'])} - {ticket['titulo']}", key=f"enc_titulo_{ticket['id']}")
