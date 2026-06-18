@@ -77,8 +77,21 @@ st.markdown(
 
 [data-testid="stSidebarCollapseButton"] {
     background-color: #ffffff !important;
-    border: 1px solid #dbeafe !important;
+    color: #082b57 !important;
+    border: 1px solid #ffffff !important;
     border-radius: 8px !important;
+    width: 175px !important;
+    height: 34px !important;
+    margin-left: 16px !important;
+    margin-top: 8px !important;
+}
+
+[data-testid="stSidebarCollapseButton"]::after {
+    content: "Ocultar menu";
+    color: #082b57;
+    font-weight: 800;
+    font-size: 13px;
+    margin-left: 8px;
 }
 
 [data-testid="stSidebarCollapseButton"] svg {
