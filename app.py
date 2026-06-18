@@ -1151,7 +1151,9 @@ if pagina == "Novo ticket":
                 responsavel,
                 nf_pedido.strip(),
                 anexos_ticket,
+                cnpj.strip(),
             )
+            
             st.success(f"Ticket {formatar_numero_ticket(novo_ticket['id'])} criado com sucesso.")
             st.session_state.ticket_aberto = novo_ticket["id"]
             st.session_state.proxima_pagina = "Kanban"
