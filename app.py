@@ -28,7 +28,7 @@ USUARIOS = {
 }
 
 STATUS = ["Aberto", "Em análise", "Aguardando retorno", "Em execução", "Resolvido"]
-SETORES = ["Comercial", "Pós-vendas", "Logística", "Financeiro", "Qualidade", "RH", "Marketing"]
+SETORES = ["Comercial", "Pós-vendas", "Logística", "Financeiro"]
 PRIORIDADES = ["Baixa", "Média", "Alta", "Urgente"]
 
 ADMIN_DELETE_EMAILS = ["comercial1@papapa.com.br"]
