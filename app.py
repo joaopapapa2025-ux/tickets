@@ -33,6 +33,7 @@ SETORES = ["Comercial", "Pós-vendas", "Logística", "Financeiro"]
 PRIORIDADES = ["Baixa", "Média", "Alta", "Urgente"]
 
 ADMIN_DELETE_EMAILS = ["comercial1@papapa.com.br"]
+ADMIN_VIEW_ALL_EMAILS = ["comercial1@papapa.com.br", "operacoes@papapa.com.br"]
 COLLECTION_TICKETS = "tickets_internos"
 COLLECTION_SESSIONS = "tickets_sessoes"
 COLLECTION_ATTACHMENTS = "tickets_anexos_chunks"
