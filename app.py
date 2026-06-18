@@ -749,9 +749,17 @@ if pagina == "Novo ticket":
         if not titulo.strip() or not descricao.strip():
             st.error("Preencha título e descrição.")
         else:
-            criar_ticket(titulo.strip(), descricao.strip(), setor_destino, prioridade, responsavel)
-            st.success("Ticket criado com sucesso.")
-            st.session_state.pagina_atual = "Kanban"
+            novo_ticket = criar_ticket(
+                titulo.strip(),
+                descricao.strip(),
+                setor_destino,
+                prioridade,
+                responsavel,
+                nf_pedido.strip(),
+                anexos_ticket,
+            )
+            st.success(f"Ticket {formatar_numero_ticket(novo_ticket['id'])} criado com sucesso.")
+            st.session_state.ticket_aberto = novo_ticket["id"]
             st.rerun()
 
 elif pagina == "Kanban":
