@@ -984,8 +984,20 @@ def painel_ticket():
             "Encaminhar para outro setor após resolver",
             expanded=st.session_state.get(chave_expander, False),
         ):
-            novo_setor = st.selectbox("Novo setor destino", SETORES, key=f"enc_setor_{ticket['id']}")
-            novo_resp = st.selectbox("Novo responsável", lista_responsaveis(novo_setor), key=f"enc_resp_{ticket['id']}")
+            novo_setor = st.selectbox(
+                "Novo setor destino",
+                SETORES,
+                key=f"enc_setor_{ticket['id']}",
+                on_change=manter_expander_aberto,
+                args=(chave_expander,),
+            )
+            novo_resp = st.selectbox(
+                "Novo responsável",
+                lista_responsaveis(novo_setor),
+                key=f"enc_resp_{ticket['id']}",
+                on_change=manter_expander_aberto,
+                args=(chave_expander,),
+            )
             novo_titulo = st.text_input("Título do novo ticket", value=f"Continuação de {formatar_numero_ticket(ticket['id'])} - {ticket['titulo']}", key=f"enc_titulo_{ticket['id']}")
             nova_desc = st.text_area("Descrição do encaminhamento", value=f"Ticket originado do {formatar_numero_ticket(ticket['id'])}.\n\nContexto anterior:\n{ticket['descricao']}", height=120, key=f"enc_desc_{ticket['id']}")
 
