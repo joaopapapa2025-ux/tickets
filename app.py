@@ -779,6 +779,7 @@ def aplicar_filtros(tickets, prefixo, incluir_filtro_mes=True):
             if busca.lower() in t["titulo"].lower()
             or busca.lower() in t["descricao"].lower()
             or busca.lower() in str(t.get("nf_pedido", "")).lower()
+            or busca.lower() in str(t.get("cnpj", "")).lower()
         ]
 
     return tickets
