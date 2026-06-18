@@ -837,6 +837,10 @@ def render_card(ticket):
     if nf_pedido:
         nf_txt = f"<div class='ticket-meta'>NF/Pedido: {nf_pedido}</div>"
 
+    cnpj_txt = ""
+    if cnpj:
+        cnpj_txt = f"<div class='ticket-meta'>CNPJ: {cnpj}</div>"
+
     anexo_txt = ""
     if ticket.get("anexos"):
         anexo_txt = f"<div class='ticket-meta'>Anexos: {len(ticket.get('anexos', []))}</div>"
