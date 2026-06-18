@@ -1,3 +1,4 @@
+import base64
 import html
 import uuid
 from datetime import datetime, timedelta
@@ -7,7 +8,6 @@ import pandas as pd
 import streamlit as st
 from google.cloud import firestore
 from google.oauth2 import service_account
-import base64
 
 
 st.set_page_config(page_title="Papapa Tickets", layout="wide")
@@ -34,16 +34,58 @@ PRIORIDADES = ["Baixa", "Média", "Alta", "Urgente"]
 ADMIN_DELETE_EMAILS = ["comercial1@papapa.com.br"]
 COLLECTION_TICKETS = "tickets_internos"
 COLLECTION_SESSIONS = "tickets_sessoes"
+COLLECTION_ATTACHMENTS = "tickets_anexos_chunks"
+
+TIPOS_ANEXOS = ["png", "jpg", "jpeg", "mp4", "mov", "avi", "pdf", "xlsx", "xls", "docx", "txt"]
+MAX_ATTACHMENT_MB = 20
+CHUNK_SIZE = 650_000
 
 
 st.markdown(
     """
 <style>
-.block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 100%; }
-[data-testid="stSidebar"] { background-color: #082b57; }
-[data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label { color: #ffffff; }
-[data-testid="stSidebar"] button { background-color: #ffffff !important; color: #082b57 !important; border: 1px solid #ffffff !important; font-weight: 800 !important; }
-[data-testid="stSidebar"] button p { color: #082b57 !important; }
+.block-container {
+    padding-top: 1.2rem;
+    padding-bottom: 2rem;
+    max-width: 100%;
+}
+
+[data-testid="stSidebar"] {
+    background-color: #082b57;
+}
+
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] label {
+    color: #ffffff !important;
+}
+
+[data-testid="stSidebar"] a {
+    color: #9cc8ff !important;
+}
+
+[data-testid="stSidebar"] button {
+    background-color: #ffffff !important;
+    color: #082b57 !important;
+    border: 1px solid #ffffff !important;
+    font-weight: 800 !important;
+}
+
+[data-testid="stSidebar"] button p {
+    color: #082b57 !important;
+}
+
+[data-testid="stSidebarCollapseButton"] {
+    background-color: #ffffff !important;
+    border: 1px solid #dbeafe !important;
+    border-radius: 8px !important;
+}
+
+[data-testid="stSidebarCollapseButton"] svg {
+    color: #082b57 !important;
+    fill: #082b57 !important;
+    stroke: #082b57 !important;
+}
 
 .ticket-card {
     background: #ffffff;
@@ -55,25 +97,90 @@ st.markdown(
     min-height: 150px;
     box-shadow: 0 4px 16px rgba(15, 23, 42, 0.07);
 }
-.ticket-title { font-weight: 850; color: #102a43; margin-bottom: 8px; line-height: 1.25; }
-.ticket-meta { font-size: 12px; color: #56657a; margin-bottom: 2px; }
-.ticket-pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; margin-right: 4px; margin-bottom: 8px; color: white; }
+
+.ticket-title {
+    font-weight: 850;
+    color: #102a43;
+    margin-bottom: 8px;
+    line-height: 1.25;
+}
+
+.ticket-meta {
+    font-size: 12px;
+    color: #56657a;
+    margin-bottom: 2px;
+}
+
+.ticket-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 999px;
+    margin-right: 4px;
+    margin-bottom: 8px;
+    color: white;
+}
+
 .priority-urgente { border-left-color: #dc2626; }
 .priority-alta { border-left-color: #f97316; }
 .priority-media { border-left-color: #2563eb; }
 .priority-baixa { border-left-color: #16a34a; }
+
 .pill-urgente { background: #dc2626; }
 .pill-alta { background: #f97316; }
 .pill-media { background: #2563eb; }
 .pill-baixa { background: #16a34a; }
+
 .age-green { background: #16a34a; }
 .age-yellow { background: #eab308; color: #111827; }
 .age-red { background: #dc2626; }
-.kanban-empty { border: 1px dashed #d7dde8; background: #f8fafc; color: #8492a6; border-radius: 8px; padding: 18px 10px; text-align: center; font-size: 12px; }
-.comment-box { background: #eef5ff; border: 1px solid #dbeafe; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
-.comment-author { font-weight: 850; color: #0f3a73; margin-bottom: 3px; }
-.comment-text { color: #1f2937; font-size: 14px; }
-.history-box { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 9px 11px; margin-bottom: 7px; font-size: 13px; }
+
+.kanban-empty {
+    border: 1px dashed #d7dde8;
+    background: #f8fafc;
+    color: #8492a6;
+    border-radius: 8px;
+    padding: 18px 10px;
+    text-align: center;
+    font-size: 12px;
+}
+
+.comment-box {
+    background: #eef5ff;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+
+.comment-author {
+    font-weight: 850;
+    color: #0f3a73;
+    margin-bottom: 3px;
+}
+
+.comment-text {
+    color: #1f2937;
+    font-size: 14px;
+}
+
+.history-box {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 9px 11px;
+    margin-bottom: 7px;
+    font-size: 13px;
+}
+
+.attach-box {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 6px;
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -113,11 +220,13 @@ def formatar_numero_ticket(ticket_id):
 def parse_data(valor):
     if not valor:
         return None
+
     for formato in ["%d/%m/%Y %H:%M", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]:
         try:
             return datetime.strptime(str(valor), formato)
         except ValueError:
             pass
+
     return None
 
 
@@ -127,24 +236,30 @@ def prioridade_classe(prioridade):
 
 def idade_ticket(ticket):
     criado = parse_data(ticket.get("criado_em", ""))
+
     if not criado:
         return 0
+
     return max((agora().date() - criado.date()).days, 0)
 
 
 def classe_idade_ticket(dias):
     if dias == 0:
         return "age-green"
+
     if dias <= 2:
         return "age-yellow"
+
     return "age-red"
 
 
 def texto_idade_ticket(dias):
     if dias == 0:
         return "Aberto hoje"
+
     if dias == 1:
         return "Aberto há 1 dia"
+
     return f"Aberto há {dias} dias"
 
 
@@ -158,6 +273,7 @@ def usuario_por_nome(nome):
             item = dados.copy()
             item["login"] = email
             return item
+
     return None
 
 
@@ -168,29 +284,37 @@ def lista_responsaveis(setor=None):
 
 def telefone_whatsapp_por_nome(nome):
     dados = usuario_por_nome(nome)
+
     if not dados:
         return ""
+
     telefone = "".join(ch for ch in dados.get("telefone", "") if ch.isdigit())
+
     if not telefone:
         return ""
+
     if not telefone.startswith("55"):
         telefone = f"55{telefone}"
+
     return telefone
 
 
 def link_whatsapp(telefone, mensagem):
     if not telefone:
         return ""
+
     return f"https://web.whatsapp.com/send/?phone={telefone}&text={quote(mensagem)}"
 
 
 def montar_mensagem(ticket, tipo):
     numero = formatar_numero_ticket(ticket["id"])
     titulo = ticket["titulo"]
+
     return (
         f"Olá! Houve uma atualização na Central de Tickets Papapa.\n\n"
         f"Tipo: {tipo}\n"
         f"Ticket: {numero} - {titulo}\n"
+        f"NF/Pedido: {ticket.get('nf_pedido', '') or 'Não informado'}\n"
         f"Status: {ticket.get('status', '')}\n"
         f"Prioridade: {ticket.get('prioridade', '')}\n"
         f"Solicitante: {ticket.get('solicitante', '')}\n"
@@ -204,8 +328,10 @@ def montar_mensagem(ticket, tipo):
 def preparar_notificacao(ticket, tipo, destinatario_nome=None):
     nome = destinatario_nome or ticket.get("responsavel", "")
     telefone = telefone_whatsapp_por_nome(nome)
+
     if not telefone:
         return
+
     st.session_state.notificacao_whatsapp = {
         "label": f"Notificar {nome} no WhatsApp",
         "url": link_whatsapp(telefone, montar_mensagem(ticket, tipo)),
@@ -224,26 +350,129 @@ def registrar_historico(ticket, acao, detalhe=""):
     )
 
 
+def salvar_arquivo_em_chunks(arquivo):
+    conteudo = arquivo.getvalue()
+    tamanho_mb = len(conteudo) / (1024 * 1024)
+
+    if tamanho_mb > MAX_ATTACHMENT_MB:
+        st.warning(f"{arquivo.name} tem {tamanho_mb:.1f} MB. O limite atual é {MAX_ATTACHMENT_MB} MB.")
+        return None
+
+    attachment_id = uuid.uuid4().hex
+    encoded = base64.b64encode(conteudo).decode("utf-8")
+    chunks = [encoded[i:i + CHUNK_SIZE] for i in range(0, len(encoded), CHUNK_SIZE)]
+
+    batch = db.batch()
+
+    for seq, chunk in enumerate(chunks):
+        ref = db.collection(COLLECTION_ATTACHMENTS).document(f"{attachment_id}_{seq:04d}")
+        batch.set(
+            ref,
+            {
+                "attachment_id": attachment_id,
+                "seq": seq,
+                "data": chunk,
+                "criado_em": agora_formatado(),
+            },
+        )
+
+    batch.commit()
+
+    return {
+        "id": attachment_id,
+        "nome": arquivo.name,
+        "tipo": arquivo.type or "application/octet-stream",
+        "tamanho": len(conteudo),
+        "partes": len(chunks),
+        "autor": st.session_state.usuario["nome"],
+        "criado_em": agora_formatado(),
+    }
+
+
+def salvar_uploads(arquivos):
+    anexos = []
+
+    for arquivo in arquivos or []:
+        anexo = salvar_arquivo_em_chunks(arquivo)
+
+        if anexo:
+            anexos.append(anexo)
+
+    return anexos
+
+
+def carregar_bytes_anexo(anexo):
+    docs = db.collection(COLLECTION_ATTACHMENTS).where("attachment_id", "==", anexo["id"]).stream()
+    partes = sorted([doc.to_dict() for doc in docs], key=lambda item: item.get("seq", 0))
+    encoded = "".join(item.get("data", "") for item in partes)
+
+    if not encoded:
+        return b""
+
+    return base64.b64decode(encoded)
+
+
+def render_anexos(anexos, prefixo):
+    if not anexos:
+        st.caption("Nenhum anexo.")
+        return
+
+    for idx, anexo in enumerate(anexos):
+        tamanho_mb = anexo.get("tamanho", 0) / (1024 * 1024)
+        st.markdown(
+            f"""
+            <div class="attach-box">
+                <b>{html.escape(anexo.get("nome", ""))}</b><br>
+                <span class="ticket-meta">{tamanho_mb:.2f} MB | {html.escape(anexo.get("autor", ""))} | {html.escape(anexo.get("criado_em", ""))}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        try:
+            dados = carregar_bytes_anexo(anexo)
+            st.download_button(
+                "Baixar arquivo",
+                data=dados,
+                file_name=anexo.get("nome", "arquivo"),
+                mime=anexo.get("tipo", "application/octet-stream"),
+                key=f"{prefixo}_download_{anexo.get('id', idx)}",
+                use_container_width=True,
+            )
+        except Exception as erro:
+            st.error(f"Não consegui carregar o anexo {anexo.get('nome', '')}.")
+            st.caption(str(erro))
+
+
 def meses_disponiveis(tickets):
     meses = set()
+
     for ticket in tickets:
         criado = parse_data(ticket.get("criado_em", ""))
+
         if criado:
             meses.add(criado.strftime("%Y-%m"))
+
     meses_ordenados = sorted(meses, reverse=True)
+
     return ["Mês atual"] + [mes for mes in meses_ordenados if mes != agora().strftime("%Y-%m")] + ["Todos"]
 
 
 def ticket_no_mes(ticket, filtro_mes):
     if ticket.get("status") != "Resolvido":
         return True
+
     if filtro_mes == "Todos":
         return True
+
     criado = parse_data(ticket.get("criado_em", ""))
+
     if not criado:
         return False
+
     if filtro_mes == "Mês atual":
         return criado.strftime("%Y-%m") == agora().strftime("%Y-%m")
+
     return criado.strftime("%Y-%m") == filtro_mes
 
 
@@ -251,6 +480,8 @@ def normalizar_ticket(ticket):
     ticket.setdefault("id", 0)
     ticket.setdefault("titulo", "")
     ticket.setdefault("descricao", "")
+    ticket.setdefault("nf_pedido", "")
+    ticket.setdefault("anexos", [])
     ticket.setdefault("setor_origem", "")
     ticket.setdefault("setor_destino", "")
     ticket.setdefault("solicitante", "")
@@ -263,6 +494,10 @@ def normalizar_ticket(ticket):
     ticket.setdefault("criado_em", "")
     ticket.setdefault("atualizado_em", "")
     ticket.setdefault("ticket_origem_id", None)
+
+    for comentario in ticket["comentarios"]:
+        comentario.setdefault("anexos", [])
+
     return ticket
 
 
@@ -270,10 +505,12 @@ def carregar_tickets_nuvem():
     try:
         docs = db.collection(COLLECTION_TICKETS).order_by("id", direction=firestore.Query.DESCENDING).stream()
         tickets = []
+
         for doc in docs:
             item = normalizar_ticket(doc.to_dict())
             item["doc_id"] = doc.id
             tickets.append(item)
+
         return tickets
     except Exception as erro:
         st.error("Erro ao carregar tickets.")
@@ -284,6 +521,7 @@ def carregar_tickets_nuvem():
 def gerar_id_ticket():
     docs = db.collection(COLLECTION_TICKETS).stream()
     ids = [doc.to_dict().get("id", 0) for doc in docs]
+
     return max(ids, default=0) + 1
 
 
@@ -293,15 +531,19 @@ def salvar_ticket_nuvem(ticket):
 
 def atualizar_ticket_nuvem(ticket):
     doc_id = ticket.get("doc_id")
+
     if not doc_id:
         return
+
     dados = ticket.copy()
     dados.pop("doc_id", None)
+
     db.collection(COLLECTION_TICKETS).document(doc_id).set(dados)
 
 
 def excluir_ticket_nuvem(ticket):
     doc_id = ticket.get("doc_id")
+
     if doc_id:
         db.collection(COLLECTION_TICKETS).document(doc_id).delete()
 
@@ -314,23 +556,32 @@ def criar_sessao(login):
         "criado_em": agora_formatado(),
         "expira_em": (agora() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S"),
     }
+
     db.collection(COLLECTION_SESSIONS).document(sid).set(dados)
+
     return sid
 
 
 def validar_sessao(sid, auth):
     if not sid or auth != token_diario():
         return None
+
     doc = db.collection(COLLECTION_SESSIONS).document(sid).get()
+
     if not doc.exists:
         return None
+
     dados = doc.to_dict()
     expira = parse_data(dados.get("expira_em", ""))
+
     if not expira or expira < agora():
         return None
+
     login = dados.get("login")
+
     if login not in USUARIOS:
         return None
+
     return login
 
 
@@ -341,18 +592,36 @@ def encerrar_sessao(sid):
 
 if "logado" not in st.session_state:
     st.session_state.logado = False
+
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
+
 if "tickets" not in st.session_state:
     st.session_state.tickets = carregar_tickets_nuvem()
+
 if "ticket_aberto" not in st.session_state:
     st.session_state.ticket_aberto = None
+
 if "pagina_atual" not in st.session_state:
     st.session_state.pagina_atual = "Kanban"
+
+if "proxima_pagina" not in st.session_state:
+    st.session_state.proxima_pagina = None
+
 if "sid" not in st.session_state:
     st.session_state.sid = st.query_params.get("sid", "")
+
 if "notificacao_whatsapp" not in st.session_state:
     st.session_state.notificacao_whatsapp = None
+
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 1
+
+
+def aplicar_proxima_pagina():
+    if st.session_state.proxima_pagina:
+        st.session_state.pagina_atual = st.session_state.proxima_pagina
+        st.session_state.proxima_pagina = None
 
 
 def setar_usuario_logado(login):
@@ -371,9 +640,11 @@ def setar_usuario_logado(login):
 def restaurar_login_por_url():
     if st.session_state.logado:
         return
+
     sid = st.query_params.get("sid", "")
     auth = st.query_params.get("auth", "")
     login_valido = validar_sessao(sid, auth)
+
     if login_valido:
         st.session_state.sid = sid
         setar_usuario_logado(login_valido)
@@ -382,6 +653,7 @@ def restaurar_login_por_url():
 def login(usuario, senha):
     usuario = usuario.strip().lower()
     dados = USUARIOS.get(usuario)
+
     if dados and dados["senha"] == senha:
         sid = criar_sessao(usuario)
         st.session_state.sid = sid
@@ -389,6 +661,7 @@ def login(usuario, senha):
         st.query_params["auth"] = token_diario()
         st.query_params["sid"] = sid
         st.rerun()
+
     st.error("Usuário ou senha inválidos.")
 
 
@@ -402,12 +675,14 @@ def sair():
     st.rerun()
 
 
-def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, origem_id=None):
+def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, nf_pedido="", anexos=None, origem_id=None):
     usuario = st.session_state.usuario
     ticket = {
         "id": gerar_id_ticket(),
         "titulo": titulo,
         "descricao": descricao,
+        "nf_pedido": nf_pedido,
+        "anexos": anexos or [],
         "setor_origem": usuario["setor"],
         "setor_destino": setor_destino,
         "solicitante": usuario["nome"],
@@ -421,15 +696,22 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, orig
         "atualizado_em": agora_formatado(),
         "ticket_origem_id": origem_id,
     }
-    registrar_historico(ticket, "Ticket criado", f"Ticket aberto para {setor_destino}.")
+
+    detalhe = f"Ticket aberto para {setor_destino}."
+    if nf_pedido:
+        detalhe += f" NF/Pedido: {nf_pedido}."
+
+    registrar_historico(ticket, "Ticket criado", detalhe)
     salvar_ticket_nuvem(ticket)
     st.session_state.tickets = carregar_tickets_nuvem()
     preparar_notificacao(ticket, "Novo ticket atribuído")
+
     return ticket
 
 
 def tickets_visiveis():
     usuario = st.session_state.usuario
+
     return [
         ticket
         for ticket in st.session_state.tickets
@@ -443,31 +725,47 @@ def tickets_visiveis():
 
 def aplicar_filtros(tickets, prefixo, incluir_filtro_mes=True):
     col1, col2, col3, col4, col5 = st.columns([1.1, 1.1, 1.2, 1.1, 1.7])
+
     with col1:
         filtro_numero = st.text_input("Número", placeholder="00001", key=f"{prefixo}_numero")
+
     with col2:
         filtro_setor = st.selectbox("Setor destino", ["Todos"] + SETORES, key=f"{prefixo}_setor")
+
     with col3:
         filtro_prioridade = st.selectbox("Prioridade", ["Todas"] + PRIORIDADES, key=f"{prefixo}_prioridade")
+
     with col4:
         filtro_mes = "Mês atual"
         if incluir_filtro_mes:
             filtro_mes = st.selectbox("Resolvidos", meses_disponiveis(tickets), key=f"{prefixo}_mes_resolvido")
+
     with col5:
-        busca = st.text_input("Buscar", placeholder="Título ou descrição", key=f"{prefixo}_busca")
+        busca = st.text_input("Buscar", placeholder="Título, descrição, NF ou pedido", key=f"{prefixo}_busca")
 
     if filtro_numero:
         numero_limpo = filtro_numero.replace("#", "").strip()
         if numero_limpo.isdigit():
             tickets = [t for t in tickets if int(t["id"]) == int(numero_limpo)]
+
     if filtro_setor != "Todos":
         tickets = [t for t in tickets if t["setor_destino"] == filtro_setor]
+
     if filtro_prioridade != "Todas":
         tickets = [t for t in tickets if t["prioridade"] == filtro_prioridade]
+
     if incluir_filtro_mes:
         tickets = [t for t in tickets if ticket_no_mes(t, filtro_mes)]
+
     if busca:
-        tickets = [t for t in tickets if busca.lower() in t["titulo"].lower() or busca.lower() in t["descricao"].lower()]
+        tickets = [
+            t
+            for t in tickets
+            if busca.lower() in t["titulo"].lower()
+            or busca.lower() in t["descricao"].lower()
+            or busca.lower() in str(t.get("nf_pedido", "")).lower()
+        ]
+
     return tickets
 
 
@@ -478,7 +776,7 @@ def abrir_ticket(ticket_id):
 
 def abrir_ticket_no_kanban(ticket_id):
     st.session_state.ticket_aberto = ticket_id
-    st.session_state.pagina_atual = "Kanban"
+    st.session_state.proxima_pagina = "Kanban"
     st.rerun()
 
 
@@ -491,10 +789,13 @@ def mostrar_logo():
 
 def render_notificacao_whatsapp():
     aviso = st.session_state.get("notificacao_whatsapp")
+
     if not aviso:
         return
+
     st.success("Ação salva. Você pode avisar a pessoa responsável pelo WhatsApp.")
     st.link_button(aviso["label"], aviso["url"], use_container_width=False)
+
     if st.button("Dispensar aviso"):
         st.session_state.notificacao_whatsapp = None
         st.rerun()
@@ -510,10 +811,19 @@ def render_card(ticket):
     responsavel = html.escape(ticket["responsavel"])
     solicitante = html.escape(ticket["solicitante"])
     criado_em = html.escape(ticket.get("criado_em", ""))
+    nf_pedido = html.escape(ticket.get("nf_pedido", ""))
 
     origem_txt = ""
     if ticket.get("ticket_origem_id"):
         origem_txt = f"<div class='ticket-meta'>Originado do {formatar_numero_ticket(ticket['ticket_origem_id'])}</div>"
+
+    nf_txt = ""
+    if nf_pedido:
+        nf_txt = f"<div class='ticket-meta'>NF/Pedido: {nf_pedido}</div>"
+
+    anexo_txt = ""
+    if ticket.get("anexos"):
+        anexo_txt = f"<div class='ticket-meta'>Anexos: {len(ticket.get('anexos', []))}</div>"
 
     st.markdown(
         f"""
@@ -525,16 +835,20 @@ def render_card(ticket):
             <div class="ticket-meta">Responsável: {responsavel}</div>
             <div class="ticket-meta">Solicitante: {solicitante}</div>
             <div class="ticket-meta">Criado em: {criado_em}</div>
+            {nf_txt}
+            {anexo_txt}
             {origem_txt}
         </div>
         """,
         unsafe_allow_html=True,
     )
+
     st.button("Abrir", key=f"abrir_{ticket['id']}", on_click=abrir_ticket, args=(ticket["id"],), use_container_width=True)
 
 
 def painel_ticket():
     ticket = next((t for t in st.session_state.tickets if t["id"] == st.session_state.ticket_aberto), None)
+
     if not ticket:
         return
 
@@ -543,6 +857,7 @@ def painel_ticket():
     classe_idade = classe_idade_ticket(dias)
 
     topo1, topo2 = st.columns([4, 1])
+
     with topo1:
         st.subheader(f"{formatar_numero_ticket(ticket['id'])} - {ticket['titulo']}")
         st.markdown(
@@ -553,6 +868,7 @@ def painel_ticket():
             unsafe_allow_html=True,
         )
         st.caption(f"{ticket['setor_origem']} para {ticket['setor_destino']} | Criado em {ticket.get('criado_em', '')}")
+
     with topo2:
         if st.button("Fechar painel", use_container_width=True):
             st.session_state.ticket_aberto = None
@@ -563,6 +879,12 @@ def painel_ticket():
     with col_tratativa:
         st.markdown("#### Tratativa")
         st.write(ticket["descricao"])
+
+        if ticket.get("nf_pedido"):
+            st.write(f"**NF/Pedido:** {ticket['nf_pedido']}")
+
+        st.markdown("#### Anexos do ticket")
+        render_anexos(ticket.get("anexos", []), f"ticket_{ticket['id']}")
 
         status_anterior = ticket["status"]
         responsavel_anterior = ticket["responsavel"]
@@ -584,10 +906,13 @@ def painel_ticket():
 
         if st.button("Salvar alterações", type="primary", use_container_width=True):
             mudancas = []
+
             if status_anterior != novo_status:
                 mudancas.append(f"status de {status_anterior} para {novo_status}")
+
             if responsavel_anterior != novo_responsavel:
                 mudancas.append(f"responsável de {responsavel_anterior} para {novo_responsavel}")
+
             if prioridade_anterior != nova_prioridade:
                 mudancas.append(f"prioridade de {prioridade_anterior} para {nova_prioridade}")
 
@@ -606,6 +931,7 @@ def painel_ticket():
             st.rerun()
 
         st.markdown("#### Resolver e encaminhar")
+
         with st.expander("Encaminhar para outro setor após resolver"):
             novo_setor = st.selectbox("Novo setor destino", SETORES, key=f"enc_setor_{ticket['id']}")
             novo_resp = st.selectbox("Novo responsável", lista_responsaveis(novo_setor), key=f"enc_resp_{ticket['id']}")
@@ -617,7 +943,18 @@ def painel_ticket():
                 ticket["atualizado_em"] = agora_formatado()
                 registrar_historico(ticket, "Ticket resolvido e encaminhado", f"Novo encaminhamento para {novo_setor}.")
                 atualizar_ticket_nuvem(ticket)
-                novo_ticket = criar_ticket(novo_titulo.strip(), nova_desc.strip(), novo_setor, ticket["prioridade"], novo_resp, origem_id=ticket["id"])
+
+                novo_ticket = criar_ticket(
+                    novo_titulo.strip(),
+                    nova_desc.strip(),
+                    novo_setor,
+                    ticket["prioridade"],
+                    novo_resp,
+                    ticket.get("nf_pedido", ""),
+                    [],
+                    origem_id=ticket["id"],
+                )
+
                 st.session_state.ticket_aberto = novo_ticket["id"]
                 st.session_state.tickets = carregar_tickets_nuvem()
                 st.success("Ticket atual resolvido e novo ticket criado.")
@@ -626,6 +963,7 @@ def painel_ticket():
         if st.session_state.usuario["login"] in ADMIN_DELETE_EMAILS:
             st.warning("Ação administrativa disponível apenas para João Tadra.")
             confirmar = st.checkbox("Confirmo que quero excluir este ticket", key=f"confirmar_exclusao_{ticket['id']}")
+
             if st.button("Excluir ticket", type="secondary", use_container_width=True):
                 if confirmar:
                     excluir_ticket_nuvem(ticket)
@@ -638,13 +976,15 @@ def painel_ticket():
 
     with col_comentarios:
         st.markdown("#### Comentários")
+
         if not ticket["comentarios"]:
             st.caption("Nenhum comentário ainda.")
 
-        for comentario in ticket["comentarios"]:
+        for idx, comentario in enumerate(ticket["comentarios"]):
             autor = html.escape(comentario.get("autor", ""))
             texto = html.escape(comentario.get("texto", ""))
             criado_em = html.escape(comentario.get("criado_em", ""))
+
             st.markdown(
                 f"""
                 <div class="comment-box">
@@ -656,21 +996,42 @@ def painel_ticket():
                 unsafe_allow_html=True,
             )
 
+            if comentario.get("anexos"):
+                render_anexos(comentario["anexos"], f"comentario_{ticket['id']}_{idx}")
+
         novo_comentario = st.text_area("Novo comentário", key=f"comentario_{ticket['id']}", height=130)
+        arquivos_comentario = st.file_uploader(
+            "Anexar arquivos ao comentário:",
+            type=TIPOS_ANEXOS,
+            accept_multiple_files=True,
+            key=f"anexos_comentario_{ticket['id']}_{st.session_state.uploader_key}",
+        )
+
         if st.button("Enviar comentário", key=f"enviar_comentario_{ticket['id']}", use_container_width=True):
-            if novo_comentario.strip():
-                ticket["comentarios"].append({"autor": st.session_state.usuario["nome"], "texto": novo_comentario.strip(), "criado_em": agora_formatado()})
+            if novo_comentario.strip() or arquivos_comentario:
+                anexos_comentario = salvar_uploads(arquivos_comentario)
+                ticket["comentarios"].append(
+                    {
+                        "autor": st.session_state.usuario["nome"],
+                        "texto": novo_comentario.strip(),
+                        "anexos": anexos_comentario,
+                        "criado_em": agora_formatado(),
+                    }
+                )
                 ticket["atualizado_em"] = agora_formatado()
-                registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120])
+                registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120] or "Comentário com anexo.")
                 atualizar_ticket_nuvem(ticket)
                 preparar_notificacao(ticket, "Novo comentário")
                 st.session_state.tickets = carregar_tickets_nuvem()
+                st.session_state.uploader_key += 1
                 st.rerun()
 
         st.markdown("#### Histórico")
         historico = ticket.get("historico", [])
+
         if not historico:
             st.caption("Nenhum histórico ainda.")
+
         for item in reversed(historico[-12:]):
             autor = html.escape(item.get("autor", ""))
             acao = html.escape(item.get("acao", ""))
@@ -680,19 +1041,24 @@ def painel_ticket():
 
 
 restaurar_login_por_url()
+aplicar_proxima_pagina()
 
 if not st.session_state.logado:
     left, center, right = st.columns([1, 1.15, 1])
+
     with center:
         mostrar_logo()
         st.title("Central de Tickets")
         st.caption("Atendimento interno Papapa")
+
         with st.form("login"):
             usuario_login = st.text_input("E-mail")
             senha_login = st.text_input("Senha", type="password")
             entrar = st.form_submit_button("Entrar", type="primary")
+
             if entrar:
                 login(usuario_login, senha_login)
+
     st.stop()
 
 
@@ -708,6 +1074,7 @@ with st.sidebar:
     st.radio("Menu", ["Kanban", "Novo ticket", "Meus tickets", "Tickets atribuídos a mim", "Dashboard"], key="pagina_atual")
 
     st.divider()
+
     if st.button("Sair", use_container_width=True):
         sair()
 
@@ -737,12 +1104,23 @@ if pagina == "Novo ticket":
 
     titulo = st.text_input("Título")
     descricao = st.text_area("Descrição", height=160)
+    nf_pedido = st.text_input("Número da NF ou Pedido:", key="input_nf_pedido")
+
+    arquivos_ticket = st.file_uploader(
+        "Anexar fotos/vídeos/documentos:",
+        type=TIPOS_ANEXOS,
+        accept_multiple_files=True,
+        key=f"input_midia_ticket_{st.session_state.uploader_key}",
+    )
 
     col1, col2, col3 = st.columns(3)
+
     with col1:
         setor_destino = st.selectbox("Setor destino", SETORES, key="novo_setor_destino")
+
     with col2:
         prioridade = st.selectbox("Prioridade", PRIORIDADES, index=1, key="novo_prioridade")
+
     with col3:
         responsavel = st.selectbox("Responsável", lista_responsaveis(setor_destino), key="novo_responsavel")
 
@@ -750,6 +1128,7 @@ if pagina == "Novo ticket":
         if not titulo.strip() or not descricao.strip():
             st.error("Preencha título e descrição.")
         else:
+            anexos_ticket = salvar_uploads(arquivos_ticket)
             novo_ticket = criar_ticket(
                 titulo.strip(),
                 descricao.strip(),
@@ -761,6 +1140,8 @@ if pagina == "Novo ticket":
             )
             st.success(f"Ticket {formatar_numero_ticket(novo_ticket['id'])} criado com sucesso.")
             st.session_state.ticket_aberto = novo_ticket["id"]
+            st.session_state.proxima_pagina = "Kanban"
+            st.session_state.uploader_key += 1
             st.rerun()
 
 elif pagina == "Kanban":
@@ -771,13 +1152,16 @@ elif pagina == "Kanban":
     st.write("")
 
     colunas = st.columns(len(STATUS), gap="small")
+
     for indice, status in enumerate(STATUS):
         with colunas[indice]:
             tickets_status = [t for t in tickets_filtrados if t["status"] == status]
             st.markdown(f"#### {status}")
             st.caption(f"{len(tickets_status)} ticket(s)")
+
             if not tickets_status:
                 st.markdown('<div class="kanban-empty">Nenhum ticket</div>', unsafe_allow_html=True)
+
             for ticket in tickets_status:
                 render_card(ticket)
 
@@ -788,20 +1172,25 @@ elif pagina == "Meus tickets":
     st.caption("Aqui ficam os tickets que você abriu como solicitante.")
 
     meus_tickets = aplicar_filtros(meus_tickets_abertos, "meus_tickets", incluir_filtro_mes=True)
+
     if not meus_tickets:
         st.info("Nenhum ticket aberto por você.")
     else:
         for ticket in meus_tickets:
             with st.expander(f"{formatar_numero_ticket(ticket['id'])} - {ticket['titulo']} | {ticket['status']}"):
                 col1, col2 = st.columns([3, 1])
+
                 with col1:
                     st.write(ticket["descricao"])
+                    if ticket.get("nf_pedido"):
+                        st.write(f"**NF/Pedido:** {ticket['nf_pedido']}")
                     st.write(f"**Status:** {ticket['status']}")
                     st.write(f"**Prioridade:** {ticket['prioridade']}")
                     st.write(f"**Solicitante:** {ticket['solicitante']}")
                     st.write(f"**Responsável:** {ticket['responsavel']}")
                     st.write(f"**Setor destino:** {ticket['setor_destino']}")
                     st.write(f"**Criado em:** {ticket.get('criado_em', '')}")
+
                 with col2:
                     st.button("Abrir / comentar", key=f"ir_kanban_meus_{ticket['id']}", on_click=abrir_ticket_no_kanban, args=(ticket["id"],), use_container_width=True)
 
@@ -810,19 +1199,24 @@ elif pagina == "Tickets atribuídos a mim":
     st.caption("Aqui ficam os tickets em que você é o responsável direto.")
 
     atribuidos = aplicar_filtros(tickets_atribuidos, "atribuidos", incluir_filtro_mes=True)
+
     if not atribuidos:
         st.info("Nenhum ticket atribuído a você.")
     else:
         for ticket in atribuidos:
             with st.expander(f"{formatar_numero_ticket(ticket['id'])} - {ticket['titulo']} | {ticket['status']}"):
                 col1, col2 = st.columns([3, 1])
+
                 with col1:
                     st.write(ticket["descricao"])
+                    if ticket.get("nf_pedido"):
+                        st.write(f"**NF/Pedido:** {ticket['nf_pedido']}")
                     st.write(f"**Status:** {ticket['status']}")
                     st.write(f"**Prioridade:** {ticket['prioridade']}")
                     st.write(f"**Solicitante:** {ticket['solicitante']}")
                     st.write(f"**Setor destino:** {ticket['setor_destino']}")
                     st.write(f"**Criado em:** {ticket.get('criado_em', '')}")
+
                 with col2:
                     st.button("Tratar ticket", key=f"ir_kanban_atribuidos_{ticket['id']}", on_click=abrir_ticket_no_kanban, args=(ticket["id"],), use_container_width=True)
 
@@ -836,17 +1230,21 @@ elif pagina == "Dashboard":
         df = pd.DataFrame(tickets_dashboard)
 
         col1, col2 = st.columns(2)
+
         with col1:
             st.markdown("#### Tickets por status")
             st.bar_chart(df["status"].value_counts())
+
         with col2:
             st.markdown("#### Tickets por setor destino")
             st.bar_chart(df["setor_destino"].value_counts())
 
         col3, col4 = st.columns(2)
+
         with col3:
             st.markdown("#### Tickets por prioridade")
             st.bar_chart(df["prioridade"].value_counts())
+
         with col4:
             st.markdown("#### Tickets por responsável")
             st.bar_chart(df["responsavel"].value_counts())
@@ -862,6 +1260,7 @@ elif pagina == "Dashboard":
                     {
                         "Ticket": formatar_numero_ticket(t["id"]),
                         "Título": t["titulo"],
+                        "NF/Pedido": t.get("nf_pedido", ""),
                         "Status": t["status"],
                         "Prioridade": t["prioridade"],
                         "Responsável": t["responsavel"],
