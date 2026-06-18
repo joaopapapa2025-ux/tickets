@@ -1118,7 +1118,8 @@ if pagina == "Novo ticket":
     titulo = st.text_input("Título")
     descricao = st.text_area("Descrição", height=160)
     nf_pedido = st.text_input("Número da NF ou Pedido:", key="input_nf_pedido")
-
+    cnpj = st.text_input("CNPJ:", key="input_cnpj")
+    
     arquivos_ticket = st.file_uploader(
         "Anexar fotos/vídeos/documentos:",
         type=TIPOS_ANEXOS,
