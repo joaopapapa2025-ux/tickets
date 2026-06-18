@@ -835,7 +835,7 @@ def render_card(ticket):
 
     origem_txt = ""
     if ticket.get("ticket_origem_id"):
-        origem_txt = f"<div class='ticket-meta'>Originado do {formatar_numero_ticket(ticket['ticket_origem_id'])}</div>"
+        origem_txt = f"Originado do {formatar_numero_ticket(ticket['ticket_origem_id'])}"
 
     nf_txt = ""
     if nf_pedido:
