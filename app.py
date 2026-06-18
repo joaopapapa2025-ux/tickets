@@ -773,6 +773,9 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, nf_p
 def tickets_visiveis():
     usuario = st.session_state.usuario
 
+    if usuario["login"] in ADMIN_VIEW_ALL_EMAILS:
+        return st.session_state.tickets
+
     return [
         ticket
         for ticket in st.session_state.tickets
