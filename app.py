@@ -850,10 +850,10 @@ def render_card(ticket):
     cnpj = html.escape(ticket.get("cnpj", ""))
 
     origem_id = limpar_id_origem(ticket.get("ticket_origem_id"))
-    origem_html = ""
+    origem_texto = ""
 
     if origem_id:
-        origem_html = f"<div class='ticket-meta'>Originado do {formatar_numero_ticket(origem_id)}</div>"
+        origem_texto = f"Originado do {formatar_numero_ticket(origem_id)}"
 
     nf_txt = ""
     if nf_pedido:
@@ -880,7 +880,7 @@ def render_card(ticket):
             {nf_txt}
             {cnpj_txt}
             {anexo_txt}
-            {origem_html}
+            <div class="ticket-meta">{origem_texto}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -978,7 +978,12 @@ def painel_ticket():
 
         st.markdown("#### Resolver e encaminhar")
 
-        with st.expander("Encaminhar para outro setor após resolver", expanded=True):
+        chave_expander = f"expander_encaminhar_{ticket['id']}"
+
+        with st.expander(
+            "Encaminhar para outro setor após resolver",
+            expanded=st.session_state.get(chave_expander, False),
+        ):
             novo_setor = st.selectbox("Novo setor destino", SETORES, key=f"enc_setor_{ticket['id']}")
             novo_resp = st.selectbox("Novo responsável", lista_responsaveis(novo_setor), key=f"enc_resp_{ticket['id']}")
             novo_titulo = st.text_input("Título do novo ticket", value=f"Continuação de {formatar_numero_ticket(ticket['id'])} - {ticket['titulo']}", key=f"enc_titulo_{ticket['id']}")
