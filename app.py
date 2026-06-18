@@ -849,13 +849,11 @@ def render_card(ticket):
     nf_pedido = html.escape(ticket.get("nf_pedido", ""))
     cnpj = html.escape(ticket.get("cnpj", ""))
 
+    origem_id = limpar_id_origem(ticket.get("ticket_origem_id"))
     origem_html = ""
-    if ticket.get("ticket_origem_id"):
-        origem_html = (
-            f"<div class='ticket-meta'>"
-            f"Originado do {formatar_numero_ticket(ticket['ticket_origem_id'])}"
-            f"</div>"
-        )
+
+    if origem_id:
+        origem_html = f"<div class='ticket-meta'>Originado do {formatar_numero_ticket(origem_id)}</div>"
 
     nf_txt = ""
     if nf_pedido:
