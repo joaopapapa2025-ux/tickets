@@ -688,7 +688,7 @@ def sair():
     st.rerun()
 
 
-def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, nf_pedido="", anexos=None, origem_id=None):
+def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, nf_pedido="", anexos=None, cnpj="", origem_id=None):
     usuario = st.session_state.usuario
     ticket = {
         "id": gerar_id_ticket(),
