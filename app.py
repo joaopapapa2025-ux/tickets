@@ -856,6 +856,7 @@ def render_card(ticket):
             <div class="ticket-meta">Solicitante: {solicitante}</div>
             <div class="ticket-meta">Criado em: {criado_em}</div>
             {nf_txt}
+            {cnpj_txt}
             {anexo_txt}
             {origem_txt}
         </div>
