@@ -898,6 +898,9 @@ def painel_ticket():
         if ticket.get("nf_pedido"):
             st.write(f"**NF/Pedido:** {ticket['nf_pedido']}")
 
+        if ticket.get("cnpj"):
+            st.write(f"**CNPJ:** {ticket['cnpj']}")
+
         st.markdown("#### Anexos do ticket")
         render_anexos(ticket.get("anexos", []), f"ticket_{ticket['id']}")
 
