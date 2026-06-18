@@ -842,6 +842,7 @@ def render_card(ticket):
     prioridade = prioridade_classe(ticket["prioridade"])
     dias = idade_ticket(ticket)
     classe_idade = classe_idade_ticket(dias)
+
     titulo = html.escape(ticket["titulo"])
     origem = html.escape(ticket["setor_origem"])
     destino = html.escape(ticket["setor_destino"])
@@ -850,24 +851,32 @@ def render_card(ticket):
     criado_em = html.escape(ticket.get("criado_em", ""))
     nf_pedido = html.escape(ticket.get("nf_pedido", ""))
     cnpj = html.escape(ticket.get("cnpj", ""))
-
     origem_id = limpar_id_origem(ticket.get("ticket_origem_id"))
-    origem_texto = ""
+
+    linhas_meta = [
+        f"{origem} para {destino}",
+        f"Responsável: {responsavel}",
+        f"Solicitante: {solicitante}",
+        f"Criado em: {criado_em}",
+    ]
+
+    if nf_pedido:
+        linhas_meta.append(f"NF/Pedido: {nf_pedido}")
+
+    if cnpj:
+        linhas_meta.append(f"CNPJ: {cnpj}")
+
+    if ticket.get("anexos"):
+        linhas_meta.append(f"Anexos: {len(ticket.get('anexos', []))}")
 
     if origem_id:
-        origem_texto = f"Originado do {formatar_numero_ticket(origem_id)}"
+        linhas_meta.append(f"Originado do {formatar_numero_ticket(origem_id)}")
 
-    nf_txt = ""
-    if nf_pedido:
-        nf_txt = f"<div class='ticket-meta'>NF/Pedido: {nf_pedido}</div>"
-
-    cnpj_txt = ""
-    if cnpj:
-        cnpj_txt = f"<div class='ticket-meta'>CNPJ: {cnpj}</div>"
-
-    anexo_txt = ""
-    if ticket.get("anexos"):
-        anexo_txt = f"<div class='ticket-meta'>Anexos: {len(ticket.get('anexos', []))}</div>"
+    linhas_meta_html = "\n".join(
+        f'<div class="ticket-meta">{linha}</div>'
+        for linha in linhas_meta
+        if linha
+    )
 
     st.markdown(
         f"""
@@ -875,20 +884,19 @@ def render_card(ticket):
             <span class="ticket-pill pill-{prioridade}">{ticket["prioridade"]}</span>
             <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
             <div class="ticket-title">{formatar_numero_ticket(ticket["id"])} - {titulo}</div>
-            <div class="ticket-meta">{origem} para {destino}</div>
-            <div class="ticket-meta">Responsável: {responsavel}</div>
-            <div class="ticket-meta">Solicitante: {solicitante}</div>
-            <div class="ticket-meta">Criado em: {criado_em}</div>
-            {nf_txt}
-            {cnpj_txt}
-            {anexo_txt}
-            <div class="ticket-meta">{origem_texto}</div>
+            {linhas_meta_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.button("Abrir", key=f"abrir_{ticket['id']}", on_click=abrir_ticket, args=(ticket["id"],), use_container_width=True)
+    st.button(
+        "Abrir",
+        key=f"abrir_{ticket['id']}",
+        on_click=abrir_ticket,
+        args=(ticket["id"],),
+        use_container_width=True,
+    )
 
 
 def painel_ticket():
