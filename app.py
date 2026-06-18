@@ -85,16 +85,22 @@ st.markdown(
     margin-left: 8px !important;
     margin-top: 8px !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
-}
-
-[data-testid="stSidebarCollapseButton"]::after {
-    content: "" !important;
+    position: relative !important;
 }
 
 [data-testid="stSidebarCollapseButton"] svg {
+    display: none !important;
+}
+
+[data-testid="stSidebarCollapseButton"]::after {
+    content: "←" !important;
     color: #082b57 !important;
-    fill: #082b57 !important;
-    stroke: #082b57 !important;
+    font-size: 22px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    position: absolute !important;
+    top: 5px !important;
+    left: 10px !important;
 }
 
 .ticket-card {
