@@ -232,6 +232,22 @@ def token_diario():
 def formatar_numero_ticket(ticket_id):
     return f"#{int(ticket_id):05d}"
 
+def limpar_id_origem(valor):
+    if not valor:
+        return None
+
+    texto = str(valor)
+
+    if "#" in texto:
+        texto = texto.split("#", 1)[1]
+
+    digitos = "".join(ch for ch in texto if ch.isdigit())
+
+    if not digitos:
+        return None
+
+    return int(digitos)
+
 
 def parse_data(valor):
     if not valor:
