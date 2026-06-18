@@ -80,18 +80,15 @@ st.markdown(
     color: #082b57 !important;
     border: 1px solid #ffffff !important;
     border-radius: 8px !important;
-    width: 175px !important;
-    height: 34px !important;
-    margin-left: 16px !important;
+    width: 36px !important;
+    height: 36px !important;
+    margin-left: 8px !important;
     margin-top: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
 }
 
 [data-testid="stSidebarCollapseButton"]::after {
-    content: "Ocultar menu";
-    color: #082b57;
-    font-weight: 800;
-    font-size: 13px;
-    margin-left: 8px;
+    content: "" !important;
 }
 
 [data-testid="stSidebarCollapseButton"] svg {
