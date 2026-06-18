@@ -1005,7 +1005,13 @@ def painel_ticket():
 
             if mudancas:
                 registrar_historico(ticket, "Ticket atualizado", "; ".join(mudancas))
-                preparar_notificacao(ticket, "Atualização de ticket")
+                destinatario = nome_para_notificacao(
+                    ticket,
+                    responsavel_anterior=responsavel_anterior,
+                    novo_responsavel=novo_responsavel,
+                )
+
+                preparar_notificacao(ticket, "Atualização de ticket", destinatario)
 
             atualizar_ticket_nuvem(ticket)
             st.session_state.tickets = carregar_tickets_nuvem()
