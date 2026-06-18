@@ -695,6 +695,7 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, nf_p
         "titulo": titulo,
         "descricao": descricao,
         "nf_pedido": nf_pedido,
+        "cnpj": cnpj,
         "anexos": anexos or [],
         "setor_origem": usuario["setor"],
         "setor_destino": setor_destino,
