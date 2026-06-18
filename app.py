@@ -8,11 +8,13 @@ from google.cloud import firestore
 from google.oauth2 import service_account
 
 
+import streamlit as st
+import pandas as pd
+
 st.set_page_config(
-    page_title="Papapa Tickets",
+    page_title="Papapá Tickets",
     layout="wide",
 )
-
 
 USUARIOS = {
     "joao.tadra": {"senha": "miojo123", "nome": "João Tadra", "setor": "Comercial"},
@@ -32,232 +34,59 @@ STATUS = ["Aberto", "Em análise", "Aguardando retorno", "Em execução", "Resol
 SETORES = ["Comercial", "Pós-vendas", "Logística", "Financeiro", "Qualidade", "RH", "Marketing"]
 PRIORIDADES = ["Baixa", "Média", "Alta", "Urgente"]
 
-COOKIE_LOGIN = "papapa_tickets_login"
-COLLECTION_TICKETS = "tickets_internos"
 
-
-st.markdown(
-    """
+st.markdown("""
 <style>
-.block-container {
-    padding-top: 1.2rem;
-    padding-bottom: 2rem;
-    max-width: 100%;
+.main {
+    background-color: #f6f8fb;
 }
-
+.block-container {
+    padding-top: 1.5rem;
+}
 [data-testid="stSidebar"] {
     background-color: #082b57;
 }
-
-[data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span,
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] div {
-    color: #ffffff;
+[data-testid="stSidebar"] * {
+    color: white;
 }
-
-[data-testid="stSidebar"] button {
-    background-color: #ffffff !important;
-    color: #082b57 !important;
-    border: 1px solid #ffffff !important;
-    font-weight: 700 !important;
-}
-
-[data-testid="stSidebar"] button p {
-    color: #082b57 !important;
-}
-
 .ticket-card {
-    background: #ffffff;
+    background: white;
     border: 1px solid #e4e8f0;
     border-left: 5px solid #1f6feb;
     border-radius: 8px;
     padding: 12px;
-    margin-bottom: 8px;
-    min-height: 136px;
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.07);
+    margin-bottom: 12px;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
 }
-
 .ticket-title {
-    font-weight: 800;
+    font-weight: 700;
     color: #102a43;
-    margin-bottom: 8px;
-    line-height: 1.25;
+    margin-bottom: 6px;
 }
-
 .ticket-meta {
     font-size: 12px;
-    color: #56657a;
-    margin-bottom: 2px;
+    color: #62748e;
 }
-
-.ticket-pill {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 999px;
-    margin-bottom: 8px;
-    color: white;
-}
-
-.priority-urgente {
+.priority-Urgente {
     border-left-color: #dc2626;
 }
-
-.priority-alta {
+.priority-Alta {
     border-left-color: #f97316;
 }
-
-.priority-media {
+.priority-Média {
     border-left-color: #2563eb;
 }
-
-.priority-baixa {
+.priority-Baixa {
     border-left-color: #16a34a;
 }
-
-.pill-urgente {
-    background: #dc2626;
-}
-
-.pill-alta {
-    background: #f97316;
-}
-
-.pill-media {
-    background: #2563eb;
-}
-
-.pill-baixa {
-    background: #16a34a;
-}
-
-.kanban-empty {
-    border: 1px dashed #d7dde8;
-    background: #f8fafc;
-    color: #8492a6;
+.kanban-column {
+    background: #eef3f8;
     border-radius: 8px;
-    padding: 18px 10px;
-    text-align: center;
-    font-size: 12px;
-}
-
-.comment-box {
-    background: #eef5ff;
-    border: 1px solid #dbeafe;
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-}
-
-.comment-author {
-    font-weight: 800;
-    color: #0f3a73;
-    margin-bottom: 3px;
-}
-
-.comment-text {
-    color: #1f2937;
-    font-size: 14px;
+    padding: 10px;
+    min-height: 520px;
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
-
-
-@st.cache_resource
-def conectar_firestore():
-    try:
-        creds = service_account.Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"]
-        )
-        return firestore.Client(credentials=creds)
-    except Exception as erro:
-        st.error("Não consegui conectar ao Firestore. Confira os secrets do Streamlit Cloud.")
-        st.exception(erro)
-        st.stop()
-
-
-db = conectar_firestore()
-cookie_manager = stx.CookieManager()
-
-
-def prioridade_classe(prioridade):
-    mapa = {
-        "Baixa": "baixa",
-        "Média": "media",
-        "Alta": "alta",
-        "Urgente": "urgente",
-    }
-    return mapa.get(prioridade, "media")
-
-
-def agora_formatado():
-    return datetime.now().strftime("%d/%m/%Y %H:%M")
-
-
-def lista_responsaveis():
-    return ["Não atribuído"] + [dados["nome"] for dados in USUARIOS.values()]
-
-
-def normalizar_ticket(ticket):
-    ticket.setdefault("id", 0)
-    ticket.setdefault("titulo", "")
-    ticket.setdefault("descricao", "")
-    ticket.setdefault("setor_origem", "")
-    ticket.setdefault("setor_destino", "")
-    ticket.setdefault("solicitante", "")
-    ticket.setdefault("responsavel", "Não atribuído")
-    ticket.setdefault("prioridade", "Média")
-    ticket.setdefault("status", "Aberto")
-    ticket.setdefault("comentarios", [])
-    ticket.setdefault("criado_em", "")
-    return ticket
-
-
-def carregar_tickets_nuvem():
-    try:
-        docs = (
-            db.collection(COLLECTION_TICKETS)
-            .order_by("id", direction=firestore.Query.DESCENDING)
-            .stream()
-        )
-
-        tickets = []
-        for doc in docs:
-            item = normalizar_ticket(doc.to_dict())
-            item["doc_id"] = doc.id
-            tickets.append(item)
-
-        return tickets
-    except Exception as erro:
-        st.error("Erro ao carregar tickets.")
-        st.exception(erro)
-        return []
-
-
-def gerar_id_ticket():
-    docs = db.collection(COLLECTION_TICKETS).stream()
-    ids = [doc.to_dict().get("id", 0) for doc in docs]
-    return max(ids, default=0) + 1
-
-
-def salvar_ticket_nuvem(ticket):
-    db.collection(COLLECTION_TICKETS).add(ticket)
-
-
-def atualizar_ticket_nuvem(ticket):
-    doc_id = ticket.get("doc_id")
-
-    if not doc_id:
-        return
-
-    dados = ticket.copy()
-    dados.pop("doc_id", None)
-
-    db.collection(COLLECTION_TICKETS).document(doc_id).set(dados)
+""", unsafe_allow_html=True)
 
 
 if "logado" not in st.session_state:
@@ -267,33 +96,17 @@ if "usuario" not in st.session_state:
     st.session_state.usuario = None
 
 if "tickets" not in st.session_state:
-    st.session_state.tickets = carregar_tickets_nuvem()
+    st.session_state.tickets = []
 
 if "ticket_aberto" not in st.session_state:
     st.session_state.ticket_aberto = None
 
-if "pagina_atual" not in st.session_state:
-    st.session_state.pagina_atual = "Kanban"
 
-
-def restaurar_login_por_cookie():
-    if st.session_state.logado:
-        return
-
-    login_salvo = cookie_manager.get(COOKIE_LOGIN)
-
-    if login_salvo and login_salvo in USUARIOS:
-        dados = USUARIOS[login_salvo]
-        st.session_state.logado = True
-        st.session_state.usuario = {
-            "login": login_salvo,
-            "nome": dados["nome"],
-            "setor": dados["setor"],
-        }
+def lista_responsaveis():
+    return ["Não atribuído"] + [dados["nome"] for dados in USUARIOS.values()]
 
 
 def login(usuario, senha):
-    usuario = usuario.strip().lower()
     dados = USUARIOS.get(usuario)
 
     if dados and dados["senha"] == senha:
@@ -303,18 +116,12 @@ def login(usuario, senha):
             "nome": dados["nome"],
             "setor": dados["setor"],
         }
-        cookie_manager.set(
-            COOKIE_LOGIN,
-            usuario,
-            expires_at=datetime.now() + timedelta(days=1),
-        )
         st.rerun()
 
     st.error("Usuário ou senha inválidos.")
 
 
 def sair():
-    cookie_manager.delete(COOKIE_LOGIN)
     st.session_state.logado = False
     st.session_state.usuario = None
     st.session_state.ticket_aberto = None
@@ -325,7 +132,7 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel):
     usuario = st.session_state.usuario
 
     ticket = {
-        "id": gerar_id_ticket(),
+        "id": len(st.session_state.tickets) + 1,
         "titulo": titulo,
         "descricao": descricao,
         "setor_origem": usuario["setor"],
@@ -335,11 +142,9 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel):
         "prioridade": prioridade,
         "status": "Aberto",
         "comentarios": [],
-        "criado_em": agora_formatado(),
     }
 
-    salvar_ticket_nuvem(ticket)
-    st.session_state.tickets = carregar_tickets_nuvem()
+    st.session_state.tickets.append(ticket)
 
 
 def tickets_visiveis():
@@ -355,20 +160,20 @@ def tickets_visiveis():
     ]
 
 
-def aplicar_filtros(tickets, prefixo):
+def aplicar_filtros(tickets):
     col1, col2, col3, col4 = st.columns([1.2, 1.2, 1.2, 2])
 
     with col1:
-        filtro_setor = st.selectbox("Setor destino", ["Todos"] + SETORES, key=f"{prefixo}_setor")
+        filtro_setor = st.selectbox("Setor destino", ["Todos"] + SETORES)
 
     with col2:
-        filtro_prioridade = st.selectbox("Prioridade", ["Todas"] + PRIORIDADES, key=f"{prefixo}_prioridade")
+        filtro_prioridade = st.selectbox("Prioridade", ["Todas"] + PRIORIDADES)
 
     with col3:
-        filtro_responsavel = st.selectbox("Responsável", ["Todos"] + lista_responsaveis(), key=f"{prefixo}_responsavel")
+        filtro_responsavel = st.selectbox("Responsável", ["Todos"] + lista_responsaveis())
 
     with col4:
-        busca = st.text_input("Buscar por título ou descrição", key=f"{prefixo}_busca")
+        busca = st.text_input("Buscar por título ou descrição")
 
     if filtro_setor != "Todos":
         tickets = [t for t in tickets if t["setor_destino"] == filtro_setor]
@@ -381,8 +186,7 @@ def aplicar_filtros(tickets, prefixo):
 
     if busca:
         tickets = [
-            t
-            for t in tickets
+            t for t in tickets
             if busca.lower() in t["titulo"].lower()
             or busca.lower() in t["descricao"].lower()
         ]
@@ -395,50 +199,21 @@ def abrir_ticket(ticket_id):
     st.rerun()
 
 
-def abrir_ticket_no_kanban(ticket_id):
-    st.session_state.ticket_aberto = ticket_id
-    st.session_state.pagina_atual = "Kanban"
-    st.rerun()
-
-
-def mostrar_logo():
-    try:
-        st.image("Papapa-azul.png", use_container_width=True)
-    except Exception:
-        st.markdown("### Papapa")
-
-
 def render_card(ticket):
-    prioridade = prioridade_classe(ticket["prioridade"])
-
-    titulo = html.escape(ticket["titulo"])
-    origem = html.escape(ticket["setor_origem"])
-    destino = html.escape(ticket["setor_destino"])
-    responsavel = html.escape(ticket["responsavel"])
-    solicitante = html.escape(ticket["solicitante"])
-    criado_em = html.escape(ticket.get("criado_em", ""))
-
     st.markdown(
         f"""
-        <div class="ticket-card priority-{prioridade}">
-            <div class="ticket-pill pill-{prioridade}">{ticket["prioridade"]}</div>
-            <div class="ticket-title">#{ticket["id"]} - {titulo}</div>
-            <div class="ticket-meta">{origem} para {destino}</div>
-            <div class="ticket-meta">Responsável: {responsavel}</div>
-            <div class="ticket-meta">Solicitante: {solicitante}</div>
-            <div class="ticket-meta">Criado em: {criado_em}</div>
+        <div class="ticket-card priority-{ticket['prioridade']}">
+            <div class="ticket-title">#{ticket['id']} - {ticket['titulo']}</div>
+            <div class="ticket-meta">{ticket['setor_origem']} para {ticket['setor_destino']}</div>
+            <div class="ticket-meta">Prioridade: {ticket['prioridade']}</div>
+            <div class="ticket-meta">Responsável: {ticket['responsavel']}</div>
+            <div class="ticket-meta">Solicitante: {ticket['solicitante']}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.button(
-        "Abrir",
-        key=f"abrir_{ticket['id']}",
-        on_click=abrir_ticket,
-        args=(ticket["id"],),
-        use_container_width=True,
-    )
+    st.button("Abrir ticket", key=f"abrir_{ticket['id']}", on_click=abrir_ticket, args=(ticket["id"],))
 
 
 def painel_ticket():
@@ -451,43 +226,54 @@ def painel_ticket():
         return
 
     st.divider()
+    st.subheader(f"Ticket #{ticket['id']} - {ticket['titulo']}")
 
-    topo1, topo2 = st.columns([4, 1])
-    with topo1:
-        st.subheader(f"Ticket #{ticket['id']} - {ticket['titulo']}")
-        st.caption(f"{ticket['setor_origem']} para {ticket['setor_destino']} | Criado em {ticket.get('criado_em', '')}")
+    col1, col2 = st.columns([1.3, 1])
 
-    with topo2:
-        if st.button("Fechar painel", use_container_width=True):
-            st.session_state.ticket_aberto = None
-            st.rerun()
-
-    col_tratativa, col_comentarios = st.columns([1.15, 1])
-
-    with col_tratativa:
-        st.markdown("#### Tratativa")
+    with col1:
         st.write(ticket["descricao"])
+
+        st.markdown("#### Comentários")
+
+        if not ticket["comentarios"]:
+            st.caption("Nenhum comentário ainda.")
+
+        for comentario in ticket["comentarios"]:
+            st.info(f"{comentario['autor']}: {comentario['texto']}")
+
+        novo_comentario = st.text_area("Novo comentário", key=f"comentario_{ticket['id']}")
+
+        if st.button("Enviar comentário", key=f"enviar_comentario_{ticket['id']}"):
+            if novo_comentario:
+                ticket["comentarios"].append(
+                    {
+                        "autor": st.session_state.usuario["nome"],
+                        "texto": novo_comentario,
+                    }
+                )
+                st.rerun()
+
+    with col2:
+        st.markdown("#### Tratativa")
 
         novo_status = st.selectbox(
             "Status",
             STATUS,
-            index=STATUS.index(ticket["status"]) if ticket["status"] in STATUS else 0,
+            index=STATUS.index(ticket["status"]),
             key=f"status_{ticket['id']}",
         )
 
         novo_responsavel = st.selectbox(
             "Responsável",
             lista_responsaveis(),
-            index=lista_responsaveis().index(ticket["responsavel"])
-            if ticket["responsavel"] in lista_responsaveis()
-            else 0,
+            index=lista_responsaveis().index(ticket["responsavel"]),
             key=f"responsavel_{ticket['id']}",
         )
 
         nova_prioridade = st.selectbox(
             "Prioridade",
             PRIORIDADES,
-            index=PRIORIDADES.index(ticket["prioridade"]) if ticket["prioridade"] in PRIORIDADES else 1,
+            index=PRIORIDADES.index(ticket["prioridade"]),
             key=f"prioridade_{ticket['id']}",
         )
 
@@ -495,74 +281,33 @@ def painel_ticket():
         st.write(f"**Origem:** {ticket['setor_origem']}")
         st.write(f"**Destino:** {ticket['setor_destino']}")
 
-        if st.button("Salvar alterações", type="primary", use_container_width=True):
+        if st.button("Salvar alterações", type="primary"):
             ticket["status"] = novo_status
             ticket["responsavel"] = novo_responsavel
             ticket["prioridade"] = nova_prioridade
-            atualizar_ticket_nuvem(ticket)
-            st.session_state.tickets = carregar_tickets_nuvem()
             st.success("Ticket atualizado.")
             st.rerun()
 
-    with col_comentarios:
-        st.markdown("#### Comentários")
+        if st.button("Fechar painel"):
+            st.session_state.ticket_aberto = None
+            st.rerun()
 
-        if not ticket["comentarios"]:
-            st.caption("Nenhum comentário ainda.")
-
-        for comentario in ticket["comentarios"]:
-            autor = html.escape(comentario.get("autor", ""))
-            texto = html.escape(comentario.get("texto", ""))
-            criado_em = html.escape(comentario.get("criado_em", ""))
-
-            st.markdown(
-                f"""
-                <div class="comment-box">
-                    <div class="comment-author">{autor}</div>
-                    <div class="comment-text">{texto}</div>
-                    <div class="ticket-meta">{criado_em}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        novo_comentario = st.text_area(
-            "Novo comentário",
-            key=f"comentario_{ticket['id']}",
-            height=130,
-        )
-
-        if st.button("Enviar comentário", key=f"enviar_comentario_{ticket['id']}", use_container_width=True):
-            if novo_comentario.strip():
-                ticket["comentarios"].append(
-                    {
-                        "autor": st.session_state.usuario["nome"],
-                        "texto": novo_comentario.strip(),
-                        "criado_em": agora_formatado(),
-                    }
-                )
-                atualizar_ticket_nuvem(ticket)
-                st.session_state.tickets = carregar_tickets_nuvem()
-                st.rerun()
-
-
-restaurar_login_por_cookie()
 
 if not st.session_state.logado:
-    left, center, right = st.columns([1, 1.15, 1])
+    left, center, right = st.columns([1, 1.2, 1])
 
     with center:
-        mostrar_logo()
+        st.image("Papapa-azul.png", use_container_width=True)
         st.title("Central de Tickets")
-        st.caption("Atendimento interno Papapa")
+        st.caption("Atendimento interno Papapá")
 
         with st.form("login"):
-            usuario_login = st.text_input("Usuário")
-            senha_login = st.text_input("Senha", type="password")
+            usuario = st.text_input("Usuário")
+            senha = st.text_input("Senha", type="password")
             entrar = st.form_submit_button("Entrar", type="primary")
 
             if entrar:
-                login(usuario_login, senha_login)
+                login(usuario, senha)
 
     st.stop()
 
@@ -570,23 +315,20 @@ if not st.session_state.logado:
 usuario = st.session_state.usuario
 
 with st.sidebar:
-    mostrar_logo()
+    st.image("Papapa-azul.png", use_container_width=True)
     st.write(f"**{usuario['nome']}**")
     st.caption(usuario["setor"])
 
-    st.radio(
+    pagina = st.radio(
         "Menu",
         ["Kanban", "Novo ticket", "Meus tickets", "Dashboard"],
-        key="pagina_atual",
     )
 
     st.divider()
 
-    if st.button("Sair", use_container_width=True):
+    if st.button("Sair"):
         sair()
 
-
-pagina = st.session_state.pagina_atual
 
 st.title("Central de Tickets")
 st.caption("Gestão interna de solicitações entre áreas")
@@ -606,8 +348,7 @@ if pagina == "Novo ticket":
 
     with st.form("novo_ticket"):
         titulo = st.text_input("Título")
-        descricao = st.text_area("Descrição", height=160)
-
+        descricao = st.text_area("Descrição")
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -622,62 +363,51 @@ if pagina == "Novo ticket":
         enviar = st.form_submit_button("Abrir ticket", type="primary")
 
         if enviar:
-            if not titulo.strip() or not descricao.strip():
+            if not titulo or not descricao:
                 st.error("Preencha título e descrição.")
             else:
-                criar_ticket(titulo.strip(), descricao.strip(), setor_destino, prioridade, responsavel)
+                criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel)
                 st.success("Ticket criado com sucesso.")
 
 elif pagina == "Kanban":
     st.subheader("Kanban executivo")
 
-    tickets_filtrados = aplicar_filtros(tickets, "kanban")
-    st.write("")
-
-    colunas = st.columns(len(STATUS), gap="small")
+    tickets_filtrados = aplicar_filtros(tickets)
+    colunas = st.columns(len(STATUS))
 
     for indice, status in enumerate(STATUS):
         with colunas[indice]:
+            st.markdown(f"### {status}")
+            st.markdown('<div class="kanban-column">', unsafe_allow_html=True)
+
             tickets_status = [t for t in tickets_filtrados if t["status"] == status]
-            st.markdown(f"#### {status}")
-            st.caption(f"{len(tickets_status)} ticket(s)")
 
             if not tickets_status:
-                st.markdown('<div class="kanban-empty">Nenhum ticket</div>', unsafe_allow_html=True)
+                st.caption("Nenhum ticket")
 
             for ticket in tickets_status:
                 render_card(ticket)
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
     painel_ticket()
 
 elif pagina == "Meus tickets":
     st.subheader("Meus tickets")
 
-    meus_tickets = aplicar_filtros(tickets, "meus_tickets")
+    meus_tickets = aplicar_filtros(tickets)
 
     if not meus_tickets:
         st.info("Nenhum ticket encontrado.")
     else:
         for ticket in meus_tickets:
-            with st.expander(f"#{ticket['id']} - {ticket['titulo']} | {ticket['status']}"):
-                col1, col2 = st.columns([3, 1])
-
-                with col1:
-                    st.write(ticket["descricao"])
-                    st.write(f"**Status:** {ticket['status']}")
-                    st.write(f"**Prioridade:** {ticket['prioridade']}")
-                    st.write(f"**Solicitante:** {ticket['solicitante']}")
-                    st.write(f"**Responsável:** {ticket['responsavel']}")
-                    st.write(f"**Setor destino:** {ticket['setor_destino']}")
-
-                with col2:
-                    st.button(
-                        "Abrir / comentar",
-                        key=f"ir_kanban_{ticket['id']}",
-                        on_click=abrir_ticket_no_kanban,
-                        args=(ticket["id"],),
-                        use_container_width=True,
-                    )
+            with st.expander(f"#{ticket['id']} - {ticket['titulo']}"):
+                st.write(ticket["descricao"])
+                st.write(f"**Status:** {ticket['status']}")
+                st.write(f"**Prioridade:** {ticket['prioridade']}")
+                st.write(f"**Solicitante:** {ticket['solicitante']}")
+                st.write(f"**Responsável:** {ticket['responsavel']}")
+                st.write(f"**Setor destino:** {ticket['setor_destino']}")
 
 elif pagina == "Dashboard":
     st.subheader("Dashboard")
