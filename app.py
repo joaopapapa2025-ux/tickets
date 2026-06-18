@@ -1,5 +1,9 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime, timedelta
+from google.cloud import firestore
+from google.oauth2 import service_account
+import extra_streamlit_components as stx
 
 st.set_page_config(
     page_title="Papapá Tickets",
@@ -24,6 +28,52 @@ STATUS = ["Aberto", "Em análise", "Aguardando retorno", "Em execução", "Resol
 SETORES = ["Comercial", "Pós-vendas", "Logística", "Financeiro", "Qualidade", "RH", "Marketing"]
 PRIORIDADES = ["Baixa", "Média", "Alta", "Urgente"]
 
+@st.cache_resource
+def conectar_firestore():
+    creds = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"]
+    )
+    return firestore.Client(credentials=creds)
+
+
+db = conectar_firestore()
+
+
+def carregar_tickets_nuvem():
+    docs = (
+        db.collection("tickets_internos")
+        .order_by("id", direction=firestore.Query.DESCENDING)
+        .stream()
+    )
+
+    tickets = []
+    for doc in docs:
+        item = doc.to_dict()
+        item["doc_id"] = doc.id
+        tickets.append(item)
+
+    return tickets
+
+
+def salvar_ticket_nuvem(ticket):
+    db.collection("tickets_internos").add(ticket)
+
+
+def atualizar_ticket_nuvem(ticket):
+    doc_id = ticket.get("doc_id")
+    if not doc_id:
+        return
+
+    dados = ticket.copy()
+    dados.pop("doc_id", None)
+
+    db.collection("tickets_internos").document(doc_id).set(dados)
+
+
+def gerar_id_ticket():
+    docs = db.collection("tickets_internos").stream()
+    ids = [doc.to_dict().get("id", 0) for doc in docs]
+    return max(ids, default=0) + 1
 
 st.markdown("""
 <style>
