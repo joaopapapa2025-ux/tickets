@@ -309,6 +309,30 @@ def usuario_por_nome(nome):
 
     return None
 
+def usuario_por_login(login):
+    dados = USUARIOS.get(login)
+
+    if not dados:
+        return None
+
+    item = dados.copy()
+    item["login"] = login
+    return item
+
+
+def nome_para_notificacao(ticket, responsavel_anterior=None, novo_responsavel=None):
+    usuario_atual = st.session_state.usuario
+    solicitante_nome = ticket.get("solicitante", "")
+    solicitante_login = ticket.get("solicitante_login", "")
+    responsavel_nome = ticket.get("responsavel", "")
+
+    if novo_responsavel and novo_responsavel != responsavel_anterior:
+        return novo_responsavel
+
+    if usuario_atual["nome"] == solicitante_nome or usuario_atual["login"] == solicitante_login:
+        return responsavel_nome
+
+    return solicitante_nome
 
 def lista_responsaveis(setor=None):
     nomes = usuarios_do_setor(setor) if setor else [dados["nome"] for dados in USUARIOS.values()]
@@ -371,16 +395,17 @@ def preparar_notificacao(ticket, tipo, destinatario_nome=None):
     }
 
 
-def registrar_historico(ticket, acao, detalhe=""):
-    historico = ticket.setdefault("historico", [])
-    historico.append(
-        {
-            "autor": st.session_state.usuario["nome"] if st.session_state.get("usuario") else "Sistema",
-            "acao": acao,
-            "detalhe": detalhe,
-            "criado_em": agora_formatado(),
-        }
-    )
+def preparar_notificacao(ticket, tipo, destinatario_nome=None):
+    nome = destinatario_nome or nome_para_notificacao(ticket)
+    telefone = telefone_whatsapp_por_nome(nome)
+
+    if not telefone:
+        return
+
+    st.session_state.notificacao_whatsapp = {
+        "label": f"Notificar {nome} no WhatsApp",
+        "url": link_whatsapp(telefone, montar_mensagem(ticket, tipo)),
+    }
 
 
 def salvar_arquivo_em_chunks(arquivo):
