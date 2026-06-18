@@ -1139,7 +1139,7 @@ def painel_ticket():
                 ticket["atualizado_em"] = agora_formatado()
                 registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120] or "Comentário com anexo.")
                 atualizar_ticket_nuvem(ticket)
-                preparar_notificacao(ticket, "Novo comentário")
+                preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
                 st.session_state.tickets = carregar_tickets_nuvem()
                 st.session_state.uploader_key += 1
                 st.rerun()
