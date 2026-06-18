@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 from google.cloud import firestore
 from google.oauth2 import service_account
+import base64
 
 
 st.set_page_config(page_title="Papapa Tickets", layout="wide")
