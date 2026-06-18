@@ -814,6 +814,8 @@ def abrir_ticket_no_kanban(ticket_id):
     st.session_state.proxima_pagina = "Kanban"
     st.rerun()
 
+def manter_expander_aberto(chave):
+    st.session_state[chave] = True
 
 def mostrar_logo():
     try:
