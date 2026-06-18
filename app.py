@@ -184,7 +184,8 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel):
         "comentarios": [],
     }
 
-    st.session_state.tickets.append(ticket)
+    salvar_ticket_nuvem(ticket)
+    st.session_state.tickets = carregar_tickets_nuvem()
 
 
 def tickets_visiveis():
