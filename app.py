@@ -1176,7 +1176,7 @@ if pagina == "Novo ticket":
             st.rerun()
 
 elif pagina == "Kanban":
-    st.subheader("Kanban executivo")
+    st.subheader("Todos os tickets")
     st.caption("O filtro de mês afeta apenas tickets resolvidos. Tickets abertos ou em andamento continuam aparecendo mesmo virando o mês.")
 
     tickets_filtrados = aplicar_filtros(tickets, "kanban", incluir_filtro_mes=True)
