@@ -494,6 +494,7 @@ def normalizar_ticket(ticket):
     ticket.setdefault("titulo", "")
     ticket.setdefault("descricao", "")
     ticket.setdefault("nf_pedido", "")
+    ticket.setdefault("cnpj", "")
     ticket.setdefault("anexos", [])
     ticket.setdefault("setor_origem", "")
     ticket.setdefault("setor_destino", "")
