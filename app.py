@@ -1354,7 +1354,7 @@ elif pagina == "Dashboard":
     with colf1:
         filtro_periodo = st.selectbox(
             "Período",
-            ["Mês atual", "Últimos 7 dias", "Últimos 30 dias", "Todos"],
+            ["Mês atual", "Últimos 7 dias", "Últimos 30 dias", "Período específico", "Todos"],
             key="dash_periodo",
         )
 
@@ -1379,14 +1379,33 @@ elif pagina == "Dashboard":
             key="dash_status",
         )
 
-    tickets_dashboard = tickets.copy()
+    data_inicio = None
+    data_fim = None
 
+    if filtro_periodo == "Período específico":
+        col_data1, col_data2 = st.columns(2)
+
+        with col_data1:
+            data_inicio = st.date_input(
+                "Data inicial",
+                value=agora().date().replace(day=1),
+                key="dash_data_inicio",
+            )
+
+        with col_data2:
+            data_fim = st.date_input(
+                "Data final",
+                value=agora().date(),
+                key="dash_data_fim",
+            )
+
+    tickets_dashboard = tickets.copy()
     hoje = agora().date()
 
     if filtro_periodo == "Mês atual":
         tickets_dashboard = [
             t for t in tickets_dashboard
-            if parse_data(t.get("criado_em", "")) 
+            if parse_data(t.get("criado_em", ""))
             and parse_data(t.get("criado_em", "")).strftime("%Y-%m") == agora().strftime("%Y-%m")
         ]
 
@@ -1403,6 +1422,17 @@ elif pagina == "Dashboard":
             if parse_data(t.get("criado_em", ""))
             and (hoje - parse_data(t.get("criado_em", "")).date()).days <= 30
         ]
+
+    elif filtro_periodo == "Período específico":
+        if data_inicio > data_fim:
+            st.error("A data inicial não pode ser maior que a data final.")
+            tickets_dashboard = []
+        else:
+            tickets_dashboard = [
+                t for t in tickets_dashboard
+                if parse_data(t.get("criado_em", ""))
+                and data_inicio <= parse_data(t.get("criado_em", "")).date() <= data_fim
+            ]
 
     if filtro_setor_dash != "Todos":
         tickets_dashboard = [
