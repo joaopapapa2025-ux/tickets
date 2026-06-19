@@ -1516,7 +1516,7 @@ elif pagina == "Tickets atribuídos a mim":
                     st.button("Tratar ticket", key=f"ir_kanban_atribuidos_{ticket['id']}", on_click=abrir_ticket_no_kanban, args=(ticket["id"],), use_container_width=True)
 
 elif pagina == "Dashboard":
-    st.subheader("Dashboard")
+    st.subheader("Dashboard executivo")
 
     colf1, colf2, colf3, colf4 = st.columns(4)
 
@@ -1624,15 +1624,98 @@ elif pagina == "Dashboard":
     if not tickets_dashboard:
         st.info("Nenhum ticket encontrado para os filtros selecionados.")
     else:
-        df = pd.DataFrame(tickets_dashboard)
+        registros = []
+
+        for ticket in tickets_dashboard:
+            criado = parse_data(ticket.get("criado_em", ""))
+            comentarios = ticket.get("comentarios", [])
+            comentarios_validos = [c for c in comentarios if not c.get("excluido")]
+
+            registros.append(
+                {
+                    "id": ticket.get("id"),
+                    "ticket": formatar_numero_ticket(ticket.get("id")),
+                    "titulo": ticket.get("titulo", ""),
+                    "nf_pedido": ticket.get("nf_pedido", ""),
+                    "cnpj": ticket.get("cnpj", ""),
+                    "status": ticket.get("status", ""),
+                    "prioridade": ticket.get("prioridade", ""),
+                    "setor_origem": ticket.get("setor_origem", ""),
+                    "setor_destino": ticket.get("setor_destino", ""),
+                    "solicitante": ticket.get("solicitante", ""),
+                    "responsavel": ticket.get("responsavel", ""),
+                    "dias_aberto": idade_ticket(ticket),
+                    "comentarios": len(comentarios_validos),
+                    "tem_anexo": len(ticket.get("anexos", [])) > 0,
+                    "criado_em": ticket.get("criado_em", ""),
+                    "data_criacao": criado.date() if criado else None,
+                }
+            )
+
+        df = pd.DataFrame(registros)
+
+        total = len(df)
+        abertos = len(df[df["status"] == "Aberto"])
+        em_andamento = len(df[df["status"].isin(["Em análise", "Em execução"])])
+        aguardando = len(df[df["status"] == "Aguardando retorno"])
+        resolvidos = len(df[df["status"] == "Resolvido"])
+        urgentes_abertos = len(df[(df["prioridade"] == "Urgente") & (df["status"] != "Resolvido")])
+        criticos = len(df[(df["dias_aberto"] >= 3) & (df["status"] != "Resolvido")])
+        sem_responsavel = len(df[(df["responsavel"] == "Não atribuído") & (df["status"] != "Resolvido")])
+        taxa_resolucao = (resolvidos / total * 100) if total else 0
+
+        abertos_df = df[df["status"] != "Resolvido"]
+        idade_media_abertos = abertos_df["dias_aberto"].mean() if not abertos_df.empty else 0
+        media_comentarios = df["comentarios"].mean() if total else 0
+
+        st.markdown("#### Resumo executivo")
 
         m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Total filtrado", total)
+        m2.metric("Resolvidos", resolvidos)
+        m3.metric("Taxa de resolução", f"{taxa_resolucao:.0f}%")
+        m4.metric("Críticos 3+ dias", criticos)
+        m5.metric("Sem responsável", sem_responsavel)
 
-        m1.metric("Total filtrado", len(tickets_dashboard))
-        m2.metric("Abertos", len([t for t in tickets_dashboard if t["status"] == "Aberto"]))
-        m3.metric("Em andamento", len([t for t in tickets_dashboard if t["status"] in ["Em análise", "Em execução"]]))
-        m4.metric("Aguardando", len([t for t in tickets_dashboard if t["status"] == "Aguardando retorno"]))
-        m5.metric("Resolvidos", len([t for t in tickets_dashboard if t["status"] == "Resolvido"]))
+        m6, m7, m8, m9, m10 = st.columns(5)
+        m6.metric("Abertos", abertos)
+        m7.metric("Em andamento", em_andamento)
+        m8.metric("Aguardando", aguardando)
+        m9.metric("Urgentes abertos", urgentes_abertos)
+        m10.metric("Idade média aberto", f"{idade_media_abertos:.1f} dias")
+
+        st.caption(f"Média de comentários por ticket: {media_comentarios:.1f}")
+
+        st.divider()
+
+        st.markdown("#### Insights rápidos")
+
+        insights = []
+
+        if criticos > 0:
+            insights.append(f"{criticos} ticket(s) em aberto há 3 dias ou mais precisam de atenção.")
+
+        if sem_responsavel > 0:
+            insights.append(f"{sem_responsavel} ticket(s) em aberto ainda estão sem responsável definido.")
+
+        if urgentes_abertos > 0:
+            insights.append(f"{urgentes_abertos} ticket(s) urgente(s) ainda não foram resolvidos.")
+
+        if not df.empty:
+            setor_top = df["setor_destino"].value_counts().idxmax()
+            qtd_setor_top = df["setor_destino"].value_counts().max()
+            insights.append(f"O setor mais acionado no filtro atual é {setor_top}, com {qtd_setor_top} ticket(s).")
+
+        if not abertos_df.empty:
+            responsavel_top = abertos_df["responsavel"].value_counts().idxmax()
+            qtd_resp_top = abertos_df["responsavel"].value_counts().max()
+            insights.append(f"O maior volume em aberto está com {responsavel_top}, com {qtd_resp_top} ticket(s).")
+
+        if insights:
+            for insight in insights:
+                st.info(insight)
+        else:
+            st.success("Nenhum ponto crítico encontrado nos filtros selecionados.")
 
         st.divider()
 
@@ -1643,44 +1726,188 @@ elif pagina == "Dashboard":
             st.bar_chart(df["status"].value_counts())
 
         with col2:
-            st.markdown("#### Tickets por setor destino")
-            st.bar_chart(df["setor_destino"].value_counts())
+            st.markdown("#### Tickets por prioridade")
+            st.bar_chart(df["prioridade"].value_counts())
 
         col3, col4 = st.columns(2)
 
         with col3:
-            st.markdown("#### Tickets por prioridade")
-            st.bar_chart(df["prioridade"].value_counts())
+            st.markdown("#### Tickets por setor destino")
+            st.bar_chart(df["setor_destino"].value_counts())
 
         with col4:
             st.markdown("#### Tickets por responsável")
             st.bar_chart(df["responsavel"].value_counts())
 
-        st.markdown("#### Tickets mais antigos em aberto")
+        st.divider()
 
-        antigos = sorted(
-            [t for t in tickets_dashboard if t["status"] != "Resolvido"],
-            key=lambda item: idade_ticket(item),
-            reverse=True,
-        )[:10]
+        st.markdown("#### Evolução diária")
 
-        if not antigos:
-            st.caption("Nenhum ticket em aberto.")
+        df_datas = df.dropna(subset=["data_criacao"]).copy()
+
+        if df_datas.empty:
+            st.caption("Não há datas suficientes para montar a evolução diária.")
         else:
-            tabela = pd.DataFrame(
-                [
-                    {
-                        "Ticket": formatar_numero_ticket(t["id"]),
-                        "Título": t["titulo"],
-                        "NF/Pedido": t.get("nf_pedido", ""),
-                        "CNPJ": t.get("cnpj", ""),
-                        "Status": t["status"],
-                        "Prioridade": t["prioridade"],
-                        "Setor destino": t["setor_destino"],
-                        "Responsável": t["responsavel"],
-                        "Dias aberto": idade_ticket(t),
-                    }
-                    for t in antigos
-                ]
+            criados_por_dia = df_datas.groupby("data_criacao").size().rename("Criados")
+            resolvidos_por_dia = df_datas[df_datas["status"] == "Resolvido"].groupby("data_criacao").size().rename("Resolvidos")
+
+            evolucao = pd.concat([criados_por_dia, resolvidos_por_dia], axis=1).fillna(0)
+            evolucao = evolucao.sort_index()
+
+            st.line_chart(evolucao)
+
+        st.divider()
+
+        col5, col6 = st.columns(2)
+
+        with col5:
+            st.markdown("#### Solicitantes que mais abriram tickets")
+            ranking_solicitantes = df["solicitante"].value_counts().reset_index()
+            ranking_solicitantes.columns = ["Solicitante", "Tickets"]
+            st.dataframe(ranking_solicitantes.head(10), use_container_width=True, hide_index=True)
+
+        with col6:
+            st.markdown("#### CNPJs mais recorrentes")
+            df_cnpj = df[df["cnpj"].astype(str).str.strip() != ""]
+
+            if df_cnpj.empty:
+                st.caption("Nenhum CNPJ informado nos tickets filtrados.")
+            else:
+                ranking_cnpj = df_cnpj["cnpj"].value_counts().reset_index()
+                ranking_cnpj.columns = ["CNPJ", "Tickets"]
+                st.dataframe(ranking_cnpj.head(10), use_container_width=True, hide_index=True)
+
+        col7, col8 = st.columns(2)
+
+        with col7:
+            st.markdown("#### Tickets por setor de origem")
+            st.bar_chart(df["setor_origem"].value_counts())
+
+        with col8:
+            st.markdown("#### Tickets com mais comentários")
+            mais_comentados = df.sort_values("comentarios", ascending=False).head(10)
+
+            tabela_comentarios = mais_comentados[
+                ["ticket", "titulo", "status", "responsavel", "comentarios"]
+            ].rename(
+                columns={
+                    "ticket": "Ticket",
+                    "titulo": "Título",
+                    "status": "Status",
+                    "responsavel": "Responsável",
+                    "comentarios": "Comentários",
+                }
             )
-            st.dataframe(tabela, use_container_width=True, hide_index=True)
+
+            st.dataframe(tabela_comentarios, use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        st.markdown("#### Tabelas de ação")
+
+        aba1, aba2, aba3, aba4 = st.tabs(
+            [
+                "Críticos",
+                "Urgentes abertos",
+                "Sem responsável",
+                "Mais antigos em aberto",
+            ]
+        )
+
+        with aba1:
+            criticos_df = df[(df["dias_aberto"] >= 3) & (df["status"] != "Resolvido")].sort_values("dias_aberto", ascending=False)
+
+            if criticos_df.empty:
+                st.success("Nenhum ticket crítico.")
+            else:
+                st.dataframe(
+                    criticos_df[
+                        ["ticket", "titulo", "nf_pedido", "cnpj", "status", "prioridade", "setor_destino", "responsavel", "dias_aberto"]
+                    ].rename(
+                        columns={
+                            "ticket": "Ticket",
+                            "titulo": "Título",
+                            "nf_pedido": "NF/Pedido",
+                            "cnpj": "CNPJ",
+                            "status": "Status",
+                            "prioridade": "Prioridade",
+                            "setor_destino": "Setor destino",
+                            "responsavel": "Responsável",
+                            "dias_aberto": "Dias aberto",
+                        }
+                    ),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+        with aba2:
+            urgentes_df = df[(df["prioridade"] == "Urgente") & (df["status"] != "Resolvido")].sort_values("dias_aberto", ascending=False)
+
+            if urgentes_df.empty:
+                st.success("Nenhum ticket urgente em aberto.")
+            else:
+                st.dataframe(
+                    urgentes_df[
+                        ["ticket", "titulo", "status", "setor_destino", "responsavel", "dias_aberto"]
+                    ].rename(
+                        columns={
+                            "ticket": "Ticket",
+                            "titulo": "Título",
+                            "status": "Status",
+                            "setor_destino": "Setor destino",
+                            "responsavel": "Responsável",
+                            "dias_aberto": "Dias aberto",
+                        }
+                    ),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+        with aba3:
+            sem_resp_df = df[(df["responsavel"] == "Não atribuído") & (df["status"] != "Resolvido")].sort_values("dias_aberto", ascending=False)
+
+            if sem_resp_df.empty:
+                st.success("Nenhum ticket sem responsável.")
+            else:
+                st.dataframe(
+                    sem_resp_df[
+                        ["ticket", "titulo", "status", "prioridade", "setor_destino", "dias_aberto"]
+                    ].rename(
+                        columns={
+                            "ticket": "Ticket",
+                            "titulo": "Título",
+                            "status": "Status",
+                            "prioridade": "Prioridade",
+                            "setor_destino": "Setor destino",
+                            "dias_aberto": "Dias aberto",
+                        }
+                    ),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+        with aba4:
+            antigos = df[df["status"] != "Resolvido"].sort_values("dias_aberto", ascending=False).head(15)
+
+            if antigos.empty:
+                st.success("Nenhum ticket em aberto.")
+            else:
+                st.dataframe(
+                    antigos[
+                        ["ticket", "titulo", "nf_pedido", "cnpj", "status", "prioridade", "setor_destino", "responsavel", "dias_aberto"]
+                    ].rename(
+                        columns={
+                            "ticket": "Ticket",
+                            "titulo": "Título",
+                            "nf_pedido": "NF/Pedido",
+                            "cnpj": "CNPJ",
+                            "status": "Status",
+                            "prioridade": "Prioridade",
+                            "setor_destino": "Setor destino",
+                            "responsavel": "Responsável",
+                            "dias_aberto": "Dias aberto",
+                        }
+                    ),
+                    use_container_width=True,
+                    hide_index=True,
+                )
