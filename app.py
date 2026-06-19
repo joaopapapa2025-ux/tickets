@@ -37,6 +37,7 @@ PRIORIDADES = ["Baixa", "Média", "Alta", "Urgente"]
 
 ADMIN_DELETE_EMAILS = ["comercial1@papapa.com.br"]
 ADMIN_VIEW_ALL_EMAILS = ["comercial1@papapa.com.br", "operacoes@papapa.com.br"]
+ADMIN_COMMENT_EMAILS = ["comercial1@papapa.com.br", "operacoes@papapa.com.br"]
 COLLECTION_TICKETS = "tickets_internos"
 COLLECTION_SESSIONS = "tickets_sessoes"
 COLLECTION_ATTACHMENTS = "tickets_anexos_chunks"
@@ -564,6 +565,11 @@ def normalizar_ticket(ticket):
 
     for comentario in ticket["comentarios"]:
         comentario.setdefault("anexos", [])
+        comentario.setdefault("excluido", False)
+        comentario.setdefault("editado_por", "")
+        comentario.setdefault("editado_em", "")
+        comentario.setdefault("excluido_por", "")
+        comentario.setdefault("excluido_em", "")
 
     return ticket
 
@@ -797,7 +803,7 @@ def tickets_visiveis():
 
 
 def aplicar_filtros(tickets, prefixo, incluir_filtro_mes=True):
-    col1, col2, col3, col4, col5 = st.columns([1.1, 1.1, 1.2, 1.1, 1.7])
+    col1, col2, col3, col4, col5, col6 = st.columns([1, 1.1, 1.2, 1.2, 1.1, 1.7])
 
     with col1:
         filtro_numero = st.text_input("Número", placeholder="00001", key=f"{prefixo}_numero")
@@ -806,15 +812,18 @@ def aplicar_filtros(tickets, prefixo, incluir_filtro_mes=True):
         filtro_setor = st.selectbox("Setor destino", ["Todos"] + SETORES, key=f"{prefixo}_setor")
 
     with col3:
-        filtro_prioridade = st.selectbox("Prioridade", ["Todas"] + PRIORIDADES, key=f"{prefixo}_prioridade")
+        filtro_responsavel = st.selectbox("Responsável", ["Todos"] + lista_responsaveis(), key=f"{prefixo}_responsavel")
 
     with col4:
+        filtro_prioridade = st.selectbox("Prioridade", ["Todas"] + PRIORIDADES, key=f"{prefixo}_prioridade")
+
+    with col5:
         filtro_mes = "Mês atual"
         if incluir_filtro_mes:
             filtro_mes = st.selectbox("Resolvidos", meses_disponiveis(tickets), key=f"{prefixo}_mes_resolvido")
 
-    with col5:
-        busca = st.text_input("Buscar", placeholder="Título, descrição, NF ou pedido", key=f"{prefixo}_busca")
+    with col6:
+        busca = st.text_input("Buscar", placeholder="Título, descrição, NF, pedido ou CNPJ", key=f"{prefixo}_busca")
 
     if filtro_numero:
         numero_limpo = filtro_numero.replace("#", "").strip()
@@ -823,6 +832,9 @@ def aplicar_filtros(tickets, prefixo, incluir_filtro_mes=True):
 
     if filtro_setor != "Todos":
         tickets = [t for t in tickets if t["setor_destino"] == filtro_setor]
+
+    if filtro_responsavel != "Todos":
+        tickets = [t for t in tickets if t.get("responsavel") == filtro_responsavel]
 
     if filtro_prioridade != "Todas":
         tickets = [t for t in tickets if t["prioridade"] == filtro_prioridade]
@@ -984,9 +996,10 @@ def painel_ticket():
         status_anterior = ticket["status"]
         responsavel_anterior = ticket["responsavel"]
         prioridade_anterior = ticket["prioridade"]
+        setor_anterior = ticket["setor_destino"]
 
         novo_status = st.selectbox("Status", STATUS, index=STATUS.index(ticket["status"]) if ticket["status"] in STATUS else 0, key=f"status_{ticket['id']}")
-        responsaveis_destino = lista_responsaveis(ticket["setor_destino"])
+        responsaveis_destino = lista_responsaveis(novo_setor_destino)
         novo_responsavel = st.selectbox(
             "Responsável",
             responsaveis_destino,
@@ -995,9 +1008,16 @@ def painel_ticket():
         )
         nova_prioridade = st.selectbox("Prioridade", PRIORIDADES, index=PRIORIDADES.index(ticket["prioridade"]) if ticket["prioridade"] in PRIORIDADES else 1, key=f"prioridade_{ticket['id']}")
 
+        novo_setor_destino = st.selectbox(
+            "Setor destino",
+            SETORES,
+            index=SETORES.index(ticket["setor_destino"]) if ticket["setor_destino"] in SETORES else 0,
+            key=f"setor_destino_{ticket['id']}",
+        )
+        
         st.write(f"**Solicitante:** {ticket['solicitante']}")
         st.write(f"**Origem:** {ticket['setor_origem']}")
-        st.write(f"**Destino:** {ticket['setor_destino']}")
+        st.write(f"**Destino atual:** {ticket['setor_destino']}")
 
         if st.button("Salvar alterações", type="primary", use_container_width=True):
             mudancas = []
@@ -1011,7 +1031,11 @@ def painel_ticket():
             if prioridade_anterior != nova_prioridade:
                 mudancas.append(f"prioridade de {prioridade_anterior} para {nova_prioridade}")
 
+            if setor_anterior != novo_setor_destino:
+                mudancas.append(f"setor destino de {setor_anterior} para {novo_setor_destino}")
+
             ticket["status"] = novo_status
+            ticket["setor_destino"] = novo_setor_destino
             ticket["responsavel"] = novo_responsavel
             ticket["prioridade"] = nova_prioridade
             ticket["atualizado_em"] = agora_formatado()
@@ -1105,29 +1129,86 @@ def painel_ticket():
                 else:
                     st.error("Marque a confirmação antes de excluir.")
 
-    with col_comentarios:
-        st.markdown("#### Comentários")
+comentarios_ordenados = list(reversed(list(enumerate(ticket["comentarios"]))))
 
-        if not ticket["comentarios"]:
-            st.caption("Nenhum comentário ainda.")
+for idx, comentario in comentarios_ordenados:
+    autor = html.escape(comentario.get("autor", ""))
+    texto = html.escape(comentario.get("texto", ""))
+    criado_em = html.escape(comentario.get("criado_em", ""))
 
-        comentarios_ordenados = list(reversed(ticket["comentarios"]))
-
-        for idx, comentario in enumerate(comentarios_ordenados):
-            autor = html.escape(comentario.get("autor", ""))
-            texto = html.escape(comentario.get("texto", ""))
-            criado_em = html.escape(comentario.get("criado_em", ""))
-
-            st.markdown(
-                f"""
-                <div class="comment-box">
-                    <div class="comment-author">{autor}</div>
-                    <div class="comment-text">{texto}</div>
-                    <div class="ticket-meta">{criado_em}</div>
+    if comentario.get("excluido"):
+        st.markdown(
+            f"""
+            <div class="comment-box">
+                <div class="comment-author">Comentário excluído</div>
+                <div class="ticket-meta">
+                    Excluído por {html.escape(comentario.get("excluido_por", ""))} em {html.escape(comentario.get("excluido_em", ""))}
                 </div>
-                """,
-                unsafe_allow_html=True,
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        continue
+
+    st.markdown(
+        f"""
+        <div class="comment-box">
+            <div class="comment-author">{autor}</div>
+            <div class="comment-text">{texto}</div>
+            <div class="ticket-meta">{criado_em}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if comentario.get("anexos"):
+        render_anexos(comentario["anexos"], f"comentario_{ticket['id']}_{idx}")
+
+    pode_editar = (
+        comentario.get("autor") == st.session_state.usuario["nome"]
+        or st.session_state.usuario["login"] in ADMIN_COMMENT_EMAILS
+    )
+
+    if pode_editar:
+        with st.expander("Opções do comentário"):
+            texto_editado = st.text_area(
+                "Editar comentário",
+                value=comentario.get("texto", ""),
+                key=f"editar_comentario_{ticket['id']}_{idx}",
             )
+
+            col_editar, col_excluir = st.columns(2)
+
+            with col_editar:
+                if st.button("Salvar edição", key=f"salvar_comentario_{ticket['id']}_{idx}", use_container_width=True):
+                    ticket["comentarios"][idx]["texto"] = texto_editado.strip()
+                    ticket["comentarios"][idx]["editado_por"] = st.session_state.usuario["nome"]
+                    ticket["comentarios"][idx]["editado_em"] = agora_formatado()
+                    ticket["atualizado_em"] = agora_formatado()
+                    registrar_historico(ticket, "Comentário editado", f"Comentário de {comentario.get('autor', '')} editado.")
+                    atualizar_ticket_nuvem(ticket)
+                    st.session_state.tickets = carregar_tickets_nuvem()
+                    st.rerun()
+
+            with col_excluir:
+                confirmar_exclusao = st.checkbox(
+                    "Confirmar exclusão",
+                    key=f"confirmar_excluir_comentario_{ticket['id']}_{idx}",
+                )
+
+                if st.button("Excluir comentário", key=f"excluir_comentario_{ticket['id']}_{idx}", use_container_width=True):
+                    if confirmar_exclusao:
+                        ticket["comentarios"][idx]["excluido"] = True
+                        ticket["comentarios"][idx]["texto"] = ""
+                        ticket["comentarios"][idx]["excluido_por"] = st.session_state.usuario["nome"]
+                        ticket["comentarios"][idx]["excluido_em"] = agora_formatado()
+                        ticket["atualizado_em"] = agora_formatado()
+                        registrar_historico(ticket, "Comentário excluído", f"Comentário de {comentario.get('autor', '')} excluído.")
+                        atualizar_ticket_nuvem(ticket)
+                        st.session_state.tickets = carregar_tickets_nuvem()
+                        st.rerun()
+                    else:
+                        st.error("Marque a confirmação antes de excluir.")
 
             if comentario.get("anexos"):
                 render_anexos(comentario["anexos"], f"comentario_{ticket['id']}_{idx}")
