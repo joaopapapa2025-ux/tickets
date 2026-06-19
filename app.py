@@ -29,6 +29,7 @@ USUARIOS = {
     "crm@papapa.com.br": {"senha": "miojo123", "usuario": "victoria.gobbo", "nome": "Victoria Gobbo", "setor": "Marketing", "email": "crm@papapa.com.br", "telefone": "5541992761230"},
     "operacoes@papapa.com.br": {"senha": "miojo123", "usuario": "tatiane.vieira", "nome": "Tatiane Vieira", "setor": "Logística", "email": "operacoes@papapa.com.br", "telefone": "5541000000000"},
     "financeiro@papapa.com.br": {"senha": "miojo123", "usuario": "janaina.eller", "nome": "Janaina Eller", "setor": "Financeiro", "email": "financeiro@papapa.com.br", "telefone": "5541000000000"},
+    "mariano@papapa.com.br": {"senha": "miojo123", "usuario": "mariano.mendez", "nome": "Mariano Mendez", "setor": "Comercial", "email": "mariano@papapa.com.br", "telefone": "5511994085130"},
 }
 
 STATUS = ["Aberto", "Em análise", "Aguardando retorno", "Em execução", "Resolvido"]
