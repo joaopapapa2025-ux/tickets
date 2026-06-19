@@ -2,6 +2,7 @@ import base64
 import html
 import uuid
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 
 import pandas as pd
@@ -221,7 +222,7 @@ db = conectar_firestore()
 
 
 def agora():
-    return datetime.now()
+    return datetime.now(ZoneInfo("America/Sao_Paulo")).replace(tzinfo=None)
 
 
 def agora_formatado():
@@ -368,19 +369,22 @@ def link_whatsapp(telefone, mensagem):
 def montar_mensagem(ticket, tipo):
     numero = formatar_numero_ticket(ticket["id"])
     titulo = ticket["titulo"]
+    base_url = "https://tickets-papapa.streamlit.app"
+    link_ticket = f"{base_url}/?auth={token_diario()}&sid={st.session_state.get('sid', '')}&ticket={ticket['id']}"
 
     return (
         f"Olá! Houve uma atualização na Central de Tickets Papapa.\n\n"
         f"Tipo: {tipo}\n"
         f"Ticket: {numero} - {titulo}\n"
         f"NF/Pedido: {ticket.get('nf_pedido', '') or 'Não informado'}\n"
+        f"CNPJ: {ticket.get('cnpj', '') or 'Não informado'}\n"
         f"Status: {ticket.get('status', '')}\n"
         f"Prioridade: {ticket.get('prioridade', '')}\n"
         f"Solicitante: {ticket.get('solicitante', '')}\n"
         f"Responsável: {ticket.get('responsavel', '')}\n"
         f"Origem: {ticket.get('setor_origem', '')}\n"
         f"Destino: {ticket.get('setor_destino', '')}\n\n"
-        f"Acesse a Central de Tickets para tratar ou acompanhar o caso."
+        f"Acesse o ticket aqui:\n{link_ticket}"
     )
 
 def preparar_notificacao(ticket, tipo, destinatario_nome=None):
@@ -679,6 +683,8 @@ if "notificacao_whatsapp" not in st.session_state:
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 1
 
+if "ticket_url_aplicado" not in st.session_state:
+    st.session_state.ticket_url_aplicado = False
 
 def aplicar_proxima_pagina():
     if st.session_state.proxima_pagina:
