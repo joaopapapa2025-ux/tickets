@@ -613,6 +613,13 @@ def atualizar_ticket_nuvem(ticket):
 
     db.collection(COLLECTION_TICKETS).document(doc_id).set(dados)
 
+def sincronizar_ticket_local(ticket_atualizado):
+    for indice, item in enumerate(st.session_state.tickets):
+        if item.get("id") == ticket_atualizado.get("id"):
+            st.session_state.tickets[indice] = ticket_atualizado
+            return
+
+    st.session_state.tickets.insert(0, ticket_atualizado)
 
 def excluir_ticket_nuvem(ticket):
     doc_id = ticket.get("doc_id")
@@ -1227,7 +1234,7 @@ def painel_ticket():
                             ticket["atualizado_em"] = agora_formatado()
                             registrar_historico(ticket, "Comentário editado", f"Comentário de {comentario.get('autor', '')} editado.")
                             atualizar_ticket_nuvem(ticket)
-                            st.session_state.tickets = carregar_tickets_nuvem()
+                            sincronizar_ticket_local(ticket)
                             st.session_state[chave_editando] = False
                             st.rerun()
 
@@ -1250,7 +1257,7 @@ def painel_ticket():
                             ticket["atualizado_em"] = agora_formatado()
                             registrar_historico(ticket, "Comentário excluído", f"Comentário de {comentario.get('autor', '')} excluído.")
                             atualizar_ticket_nuvem(ticket)
-                            st.session_state.tickets = carregar_tickets_nuvem()
+                            sincronizar_ticket_local(ticket)
                             st.session_state[chave_excluindo] = False
                             st.rerun()
 
@@ -1292,7 +1299,7 @@ def painel_ticket():
             registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120] or "Comentário com anexo.")
             atualizar_ticket_nuvem(ticket)
             preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
-            st.session_state.tickets = carregar_tickets_nuvem()
+            sincronizar_ticket_local(ticket)
             st.session_state.uploader_key += 1
             st.rerun()
 
@@ -1343,8 +1350,9 @@ if not st.session_state.logado:
 
     st.stop()
 
-st_autorefresh(interval=30000, key="tickets_autorefresh")
-st.session_state.tickets = carregar_tickets_nuvem()
+if st.session_state.pagina_atual == "Kanban" and st.session_state.ticket_aberto is None:
+    st_autorefresh(interval=60000, key="tickets_autorefresh")
+    st.session_state.tickets = carregar_tickets_nuvem()
 
 usuario = st.session_state.usuario
 
