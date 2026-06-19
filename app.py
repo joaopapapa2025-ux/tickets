@@ -1348,12 +1348,94 @@ elif pagina == "Tickets atribuídos a mim":
 
 elif pagina == "Dashboard":
     st.subheader("Dashboard")
-    tickets_dashboard = [t for t in tickets if ticket_no_mes(t, "Mês atual")]
+
+    colf1, colf2, colf3, colf4 = st.columns(4)
+
+    with colf1:
+        filtro_periodo = st.selectbox(
+            "Período",
+            ["Mês atual", "Últimos 7 dias", "Últimos 30 dias", "Todos"],
+            key="dash_periodo",
+        )
+
+    with colf2:
+        filtro_setor_dash = st.selectbox(
+            "Setor destino",
+            ["Todos"] + SETORES,
+            key="dash_setor",
+        )
+
+    with colf3:
+        filtro_responsavel_dash = st.selectbox(
+            "Responsável",
+            ["Todos"] + lista_responsaveis(),
+            key="dash_responsavel",
+        )
+
+    with colf4:
+        filtro_status_dash = st.selectbox(
+            "Status",
+            ["Todos"] + STATUS,
+            key="dash_status",
+        )
+
+    tickets_dashboard = tickets.copy()
+
+    hoje = agora().date()
+
+    if filtro_periodo == "Mês atual":
+        tickets_dashboard = [
+            t for t in tickets_dashboard
+            if parse_data(t.get("criado_em", "")) 
+            and parse_data(t.get("criado_em", "")).strftime("%Y-%m") == agora().strftime("%Y-%m")
+        ]
+
+    elif filtro_periodo == "Últimos 7 dias":
+        tickets_dashboard = [
+            t for t in tickets_dashboard
+            if parse_data(t.get("criado_em", ""))
+            and (hoje - parse_data(t.get("criado_em", "")).date()).days <= 7
+        ]
+
+    elif filtro_periodo == "Últimos 30 dias":
+        tickets_dashboard = [
+            t for t in tickets_dashboard
+            if parse_data(t.get("criado_em", ""))
+            and (hoje - parse_data(t.get("criado_em", "")).date()).days <= 30
+        ]
+
+    if filtro_setor_dash != "Todos":
+        tickets_dashboard = [
+            t for t in tickets_dashboard
+            if t.get("setor_destino") == filtro_setor_dash
+        ]
+
+    if filtro_responsavel_dash != "Todos":
+        tickets_dashboard = [
+            t for t in tickets_dashboard
+            if t.get("responsavel") == filtro_responsavel_dash
+        ]
+
+    if filtro_status_dash != "Todos":
+        tickets_dashboard = [
+            t for t in tickets_dashboard
+            if t.get("status") == filtro_status_dash
+        ]
 
     if not tickets_dashboard:
-        st.info("Ainda não há tickets para exibir.")
+        st.info("Nenhum ticket encontrado para os filtros selecionados.")
     else:
         df = pd.DataFrame(tickets_dashboard)
+
+        m1, m2, m3, m4, m5 = st.columns(5)
+
+        m1.metric("Total filtrado", len(tickets_dashboard))
+        m2.metric("Abertos", len([t for t in tickets_dashboard if t["status"] == "Aberto"]))
+        m3.metric("Em andamento", len([t for t in tickets_dashboard if t["status"] in ["Em análise", "Em execução"]]))
+        m4.metric("Aguardando", len([t for t in tickets_dashboard if t["status"] == "Aguardando retorno"]))
+        m5.metric("Resolvidos", len([t for t in tickets_dashboard if t["status"] == "Resolvido"]))
+
+        st.divider()
 
         col1, col2 = st.columns(2)
 
@@ -1376,7 +1458,12 @@ elif pagina == "Dashboard":
             st.bar_chart(df["responsavel"].value_counts())
 
         st.markdown("#### Tickets mais antigos em aberto")
-        antigos = sorted([t for t in tickets_dashboard if t["status"] != "Resolvido"], key=lambda item: idade_ticket(item), reverse=True)[:10]
+
+        antigos = sorted(
+            [t for t in tickets_dashboard if t["status"] != "Resolvido"],
+            key=lambda item: idade_ticket(item),
+            reverse=True,
+        )[:10]
 
         if not antigos:
             st.caption("Nenhum ticket em aberto.")
@@ -1387,8 +1474,10 @@ elif pagina == "Dashboard":
                         "Ticket": formatar_numero_ticket(t["id"]),
                         "Título": t["titulo"],
                         "NF/Pedido": t.get("nf_pedido", ""),
+                        "CNPJ": t.get("cnpj", ""),
                         "Status": t["status"],
                         "Prioridade": t["prioridade"],
+                        "Setor destino": t["setor_destino"],
                         "Responsável": t["responsavel"],
                         "Dias aberto": idade_ticket(t),
                     }
