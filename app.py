@@ -1129,89 +1129,92 @@ def painel_ticket():
                 else:
                     st.error("Marque a confirmação antes de excluir.")
 
-comentarios_ordenados = list(reversed(list(enumerate(ticket["comentarios"]))))
+    with col_comentarios:
+        st.markdown("#### Comentários")
 
-for idx, comentario in comentarios_ordenados:
-    autor = html.escape(comentario.get("autor", ""))
-    texto = html.escape(comentario.get("texto", ""))
-    criado_em = html.escape(comentario.get("criado_em", ""))
+        if not ticket["comentarios"]:
+            st.caption("Nenhum comentário ainda.")
 
-    if comentario.get("excluido"):
-        st.markdown(
-            f"""
-            <div class="comment-box">
-                <div class="comment-author">Comentário excluído</div>
-                <div class="ticket-meta">
-                    Excluído por {html.escape(comentario.get("excluido_por", ""))} em {html.escape(comentario.get("excluido_em", ""))}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        continue
+        comentarios_ordenados = list(reversed(list(enumerate(ticket["comentarios"]))))
 
-    st.markdown(
-        f"""
-        <div class="comment-box">
-            <div class="comment-author">{autor}</div>
-            <div class="comment-text">{texto}</div>
-            <div class="ticket-meta">{criado_em}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        for idx, comentario in comentarios_ordenados:
+            autor = html.escape(comentario.get("autor", ""))
+            texto = html.escape(comentario.get("texto", ""))
+            criado_em = html.escape(comentario.get("criado_em", ""))
 
-    if comentario.get("anexos"):
-        render_anexos(comentario["anexos"], f"comentario_{ticket['id']}_{idx}")
-
-    pode_editar = (
-        comentario.get("autor") == st.session_state.usuario["nome"]
-        or st.session_state.usuario["login"] in ADMIN_COMMENT_EMAILS
-    )
-
-    if pode_editar:
-        with st.expander("Opções do comentário"):
-            texto_editado = st.text_area(
-                "Editar comentário",
-                value=comentario.get("texto", ""),
-                key=f"editar_comentario_{ticket['id']}_{idx}",
-            )
-
-            col_editar, col_excluir = st.columns(2)
-
-            with col_editar:
-                if st.button("Salvar edição", key=f"salvar_comentario_{ticket['id']}_{idx}", use_container_width=True):
-                    ticket["comentarios"][idx]["texto"] = texto_editado.strip()
-                    ticket["comentarios"][idx]["editado_por"] = st.session_state.usuario["nome"]
-                    ticket["comentarios"][idx]["editado_em"] = agora_formatado()
-                    ticket["atualizado_em"] = agora_formatado()
-                    registrar_historico(ticket, "Comentário editado", f"Comentário de {comentario.get('autor', '')} editado.")
-                    atualizar_ticket_nuvem(ticket)
-                    st.session_state.tickets = carregar_tickets_nuvem()
-                    st.rerun()
-
-            with col_excluir:
-                confirmar_exclusao = st.checkbox(
-                    "Confirmar exclusão",
-                    key=f"confirmar_excluir_comentario_{ticket['id']}_{idx}",
+            if comentario.get("excluido"):
+                st.markdown(
+                    f"""
+                    <div class="comment-box">
+                        <div class="comment-author">Comentário excluído</div>
+                        <div class="ticket-meta">
+                            Excluído por {html.escape(comentario.get("excluido_por", ""))} em {html.escape(comentario.get("excluido_em", ""))}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
+                continue
 
-                if st.button("Excluir comentário", key=f"excluir_comentario_{ticket['id']}_{idx}", use_container_width=True):
-                    if confirmar_exclusao:
-                        ticket["comentarios"][idx]["excluido"] = True
-                        ticket["comentarios"][idx]["texto"] = ""
-                        ticket["comentarios"][idx]["excluido_por"] = st.session_state.usuario["nome"]
-                        ticket["comentarios"][idx]["excluido_em"] = agora_formatado()
-                        ticket["atualizado_em"] = agora_formatado()
-                        registrar_historico(ticket, "Comentário excluído", f"Comentário de {comentario.get('autor', '')} excluído.")
-                        atualizar_ticket_nuvem(ticket)
-                        st.session_state.tickets = carregar_tickets_nuvem()
-                        st.rerun()
-                    else:
-                        st.error("Marque a confirmação antes de excluir.")
+            st.markdown(
+                f"""
+                <div class="comment-box">
+                    <div class="comment-author">{autor}</div>
+                    <div class="comment-text">{texto}</div>
+                    <div class="ticket-meta">{criado_em}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
             if comentario.get("anexos"):
                 render_anexos(comentario["anexos"], f"comentario_{ticket['id']}_{idx}")
+
+            pode_editar = (
+                comentario.get("autor") == st.session_state.usuario["nome"]
+                or st.session_state.usuario["login"] in ADMIN_COMMENT_EMAILS
+            )
+
+            if pode_editar:
+                with st.expander("Opções do comentário"):
+                    texto_editado = st.text_area(
+                        "Editar comentário",
+                        value=comentario.get("texto", ""),
+                        key=f"editar_comentario_{ticket['id']}_{idx}",
+                    )
+
+                    col_editar, col_excluir = st.columns(2)
+
+                    with col_editar:
+                        if st.button("Salvar edição", key=f"salvar_comentario_{ticket['id']}_{idx}", use_container_width=True):
+                            ticket["comentarios"][idx]["texto"] = texto_editado.strip()
+                            ticket["comentarios"][idx]["editado_por"] = st.session_state.usuario["nome"]
+                            ticket["comentarios"][idx]["editado_em"] = agora_formatado()
+                            ticket["atualizado_em"] = agora_formatado()
+                            registrar_historico(ticket, "Comentário editado", f"Comentário de {comentario.get('autor', '')} editado.")
+                            atualizar_ticket_nuvem(ticket)
+                            st.session_state.tickets = carregar_tickets_nuvem()
+                            st.rerun()
+
+                    with col_excluir:
+                        confirmar_exclusao = st.checkbox(
+                            "Confirmar exclusão",
+                            key=f"confirmar_excluir_comentario_{ticket['id']}_{idx}",
+                        )
+
+                        if st.button("Excluir comentário", key=f"excluir_comentario_{ticket['id']}_{idx}", use_container_width=True):
+                            if confirmar_exclusao:
+                                ticket["comentarios"][idx]["excluido"] = True
+                                ticket["comentarios"][idx]["texto"] = ""
+                                ticket["comentarios"][idx]["excluido_por"] = st.session_state.usuario["nome"]
+                                ticket["comentarios"][idx]["excluido_em"] = agora_formatado()
+                                ticket["atualizado_em"] = agora_formatado()
+                                registrar_historico(ticket, "Comentário excluído", f"Comentário de {comentario.get('autor', '')} excluído.")
+                                atualizar_ticket_nuvem(ticket)
+                                st.session_state.tickets = carregar_tickets_nuvem()
+                                st.rerun()
+                            else:
+                                st.error("Marque a confirmação antes de excluir.")
 
         novo_comentario = st.text_area("Novo comentário", key=f"comentario_{ticket['id']}", height=130)
         arquivos_comentario = st.file_uploader(
@@ -1230,6 +1233,11 @@ for idx, comentario in comentarios_ordenados:
                         "texto": novo_comentario.strip(),
                         "anexos": anexos_comentario,
                         "criado_em": agora_formatado(),
+                        "excluido": False,
+                        "editado_por": "",
+                        "editado_em": "",
+                        "excluido_por": "",
+                        "excluido_em": "",
                     }
                 )
                 ticket["atualizado_em"] = agora_formatado()
