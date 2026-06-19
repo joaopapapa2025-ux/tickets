@@ -998,15 +998,12 @@ def painel_ticket():
         prioridade_anterior = ticket["prioridade"]
         setor_anterior = ticket["setor_destino"]
 
-        novo_status = st.selectbox("Status", STATUS, index=STATUS.index(ticket["status"]) if ticket["status"] in STATUS else 0, key=f"status_{ticket['id']}")
-        responsaveis_destino = lista_responsaveis(novo_setor_destino)
-        novo_responsavel = st.selectbox(
-            "Responsável",
-            responsaveis_destino,
-            index=responsaveis_destino.index(ticket["responsavel"]) if ticket["responsavel"] in responsaveis_destino else 0,
-            key=f"responsavel_{ticket['id']}",
+        novo_status = st.selectbox(
+            "Status",
+            STATUS,
+            index=STATUS.index(ticket["status"]) if ticket["status"] in STATUS else 0,
+            key=f"status_{ticket['id']}",
         )
-        nova_prioridade = st.selectbox("Prioridade", PRIORIDADES, index=PRIORIDADES.index(ticket["prioridade"]) if ticket["prioridade"] in PRIORIDADES else 1, key=f"prioridade_{ticket['id']}")
 
         novo_setor_destino = st.selectbox(
             "Setor destino",
@@ -1014,6 +1011,22 @@ def painel_ticket():
             index=SETORES.index(ticket["setor_destino"]) if ticket["setor_destino"] in SETORES else 0,
             key=f"setor_destino_{ticket['id']}",
         )
+
+responsaveis_destino = lista_responsaveis(novo_setor_destino)
+
+novo_responsavel = st.selectbox(
+    "Responsável",
+    responsaveis_destino,
+    index=responsaveis_destino.index(ticket["responsavel"]) if ticket["responsavel"] in responsaveis_destino else 0,
+    key=f"responsavel_{ticket['id']}",
+)
+
+nova_prioridade = st.selectbox(
+    "Prioridade",
+    PRIORIDADES,
+    index=PRIORIDADES.index(ticket["prioridade"]) if ticket["prioridade"] in PRIORIDADES else 1,
+    key=f"prioridade_{ticket['id']}",
+)
         
         st.write(f"**Solicitante:** {ticket['solicitante']}")
         st.write(f"**Origem:** {ticket['setor_origem']}")
