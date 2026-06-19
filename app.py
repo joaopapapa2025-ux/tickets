@@ -22,7 +22,7 @@ USUARIOS = {
     "posvendas1@papapa.com.br": {"senha": "miojo123", "usuario": "thiago.cabral", "nome": "Thiago Cabral", "setor": "Pós-vendas", "email": "posvendas1@papapa.com.br", "telefone": "5541984703249"},
     "posvendas2@papapa.com.br": {"senha": "miojo123", "usuario": "bernardo.dallegrave", "nome": "Bernardo Dallegrave", "setor": "Pós-vendas", "email": "posvendas2@papapa.com.br", "telefone": "5541984703249"},
     "logistica4@papapa.com.br": {"senha": "miojo123", "usuario": "ronaldo.leidens", "nome": "Ronaldo Leidens", "setor": "Logística", "email": "logistica4@papapa.com.br", "telefone": "5541991917922"},
-    "contasareceber@papapa.com.br": {"senha": "miojo123", "usuario": "luan.dornelis", "nome": "Luan Dornelis", "setor": "Financeiro", "email": "contasareceber@papapa.com.br", "telefone": "5541996071551"},
+    "contasareceber@papapa.com.br": {"senha": "miojo123", "usuario": "luan.dornelis", "nome": "Luan Dornelis", "setor": "Financeiro", "email": "contasareceber@papapa.com.br", "telefone": "5541991361619"},
     "rh@papapa.com.br": {"senha": "miojo123", "usuario": "maria.julia", "nome": "Maria Julia", "setor": "RH", "email": "rh@papapa.com.br", "telefone": "5541984402434"},
     "crm@papapa.com.br": {"senha": "miojo123", "usuario": "victoria.gobbo", "nome": "Victoria Gobbo", "setor": "Marketing", "email": "crm@papapa.com.br", "telefone": "5541992761230"},
     "operacoes@papapa.com.br": {"senha": "miojo123", "usuario": "tatiane.vieira", "nome": "Tatiane Vieira", "setor": "Logística", "email": "operacoes@papapa.com.br", "telefone": "5541000000000"},
