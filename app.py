@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import quote
+from streamlit_autorefresh import st_autorefresh
 
 import pandas as pd
 import streamlit as st
@@ -1202,6 +1203,8 @@ if not st.session_state.logado:
 
     st.stop()
 
+st_autorefresh(interval=30000, key="tickets_autorefresh")
+st.session_state.tickets = carregar_tickets_nuvem()
 
 usuario = st.session_state.usuario
 
