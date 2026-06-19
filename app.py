@@ -382,20 +382,6 @@ def montar_mensagem(ticket, tipo):
         f"Acesse a Central de Tickets para tratar ou acompanhar o caso."
     )
 
-
-def preparar_notificacao(ticket, tipo, destinatario_nome=None):
-    nome = destinatario_nome or ticket.get("responsavel", "")
-    telefone = telefone_whatsapp_por_nome(nome)
-
-    if not telefone:
-        return
-
-    st.session_state.notificacao_whatsapp = {
-        "label": f"Notificar {nome} no WhatsApp",
-        "url": link_whatsapp(telefone, montar_mensagem(ticket, tipo)),
-    }
-
-
 def preparar_notificacao(ticket, tipo, destinatario_nome=None):
     nome = destinatario_nome or nome_para_notificacao(ticket)
     telefone = telefone_whatsapp_por_nome(nome)
@@ -408,6 +394,21 @@ def preparar_notificacao(ticket, tipo, destinatario_nome=None):
         "url": link_whatsapp(telefone, montar_mensagem(ticket, tipo)),
     }
 
+    st.session_state.notificacao_whatsapp = {
+        "label": f"Notificar {nome} no WhatsApp",
+        "url": link_whatsapp(telefone, montar_mensagem(ticket, tipo)),
+    }
+
+def registrar_historico(ticket, acao, detalhe=""):
+    historico = ticket.setdefault("historico", [])
+    historico.append(
+        {
+            "autor": st.session_state.usuario["nome"] if st.session_state.get("usuario") else "Sistema",
+            "acao": acao,
+            "detalhe": detalhe,
+            "criado_em": agora_formatado(),
+        }
+    )
 
 def salvar_arquivo_em_chunks(arquivo):
     conteudo = arquivo.getvalue()
