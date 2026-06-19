@@ -1180,6 +1180,9 @@ def painel_ticket():
                 unsafe_allow_html=True,
             )
 
+            if comentario.get("editado_em"):
+                st.caption(f"Editado por {comentario.get('editado_por', '')} em {comentario.get('editado_em', '')}")
+
             if comentario.get("anexos"):
                 render_anexos(comentario["anexos"], f"comentario_{ticket['id']}_{idx}")
 
@@ -1189,17 +1192,35 @@ def painel_ticket():
             )
 
             if pode_editar:
-                with st.expander("Opções do comentário"):
+                chave_editando = f"editando_comentario_{ticket['id']}_{idx}"
+                chave_excluindo = f"excluindo_comentario_{ticket['id']}_{idx}"
+
+                col_op1, col_op2, col_op3 = st.columns([1, 1, 5])
+
+                with col_op1:
+                    if st.button("Editar", key=f"btn_editar_{ticket['id']}_{idx}"):
+                        st.session_state[chave_editando] = True
+                        st.session_state[chave_excluindo] = False
+                        st.rerun()
+
+                with col_op2:
+                    if st.button("Excluir", key=f"btn_excluir_{ticket['id']}_{idx}"):
+                        st.session_state[chave_excluindo] = True
+                        st.session_state[chave_editando] = False
+                        st.rerun()
+
+                if st.session_state.get(chave_editando, False):
                     texto_editado = st.text_area(
                         "Editar comentário",
                         value=comentario.get("texto", ""),
                         key=f"editar_comentario_{ticket['id']}_{idx}",
+                        height=110,
                     )
 
-                    col_editar, col_excluir = st.columns(2)
+                    col_salvar, col_cancelar = st.columns(2)
 
-                    with col_editar:
-                        if st.button("Salvar edição", key=f"salvar_comentario_{ticket['id']}_{idx}", use_container_width=True):
+                    with col_salvar:
+                        if st.button("Salvar", key=f"salvar_comentario_{ticket['id']}_{idx}", use_container_width=True):
                             ticket["comentarios"][idx]["texto"] = texto_editado.strip()
                             ticket["comentarios"][idx]["editado_por"] = st.session_state.usuario["nome"]
                             ticket["comentarios"][idx]["editado_em"] = agora_formatado()
@@ -1207,29 +1228,39 @@ def painel_ticket():
                             registrar_historico(ticket, "Comentário editado", f"Comentário de {comentario.get('autor', '')} editado.")
                             atualizar_ticket_nuvem(ticket)
                             st.session_state.tickets = carregar_tickets_nuvem()
+                            st.session_state[chave_editando] = False
                             st.rerun()
 
-                    with col_excluir:
-                        confirmar_exclusao = st.checkbox(
-                            "Confirmar exclusão",
-                            key=f"confirmar_excluir_comentario_{ticket['id']}_{idx}",
-                        )
+                    with col_cancelar:
+                        if st.button("Cancelar", key=f"cancelar_edicao_{ticket['id']}_{idx}", use_container_width=True):
+                            st.session_state[chave_editando] = False
+                            st.rerun()
 
-                        if st.button("Excluir comentário", key=f"excluir_comentario_{ticket['id']}_{idx}", use_container_width=True):
-                            if confirmar_exclusao:
-                                ticket["comentarios"][idx]["excluido"] = True
-                                ticket["comentarios"][idx]["texto"] = ""
-                                ticket["comentarios"][idx]["excluido_por"] = st.session_state.usuario["nome"]
-                                ticket["comentarios"][idx]["excluido_em"] = agora_formatado()
-                                ticket["atualizado_em"] = agora_formatado()
-                                registrar_historico(ticket, "Comentário excluído", f"Comentário de {comentario.get('autor', '')} excluído.")
-                                atualizar_ticket_nuvem(ticket)
-                                st.session_state.tickets = carregar_tickets_nuvem()
-                                st.rerun()
-                            else:
-                                st.error("Marque a confirmação antes de excluir.")
+                if st.session_state.get(chave_excluindo, False):
+                    st.warning("Tem certeza que deseja excluir este comentário?")
 
-        novo_comentario = st.text_area("Novo comentário", key=f"comentario_{ticket['id']}", height=130)
+                    col_confirmar, col_cancelar = st.columns(2)
+
+                    with col_confirmar:
+                        if st.button("Confirmar exclusão", key=f"confirmar_excluir_comentario_{ticket['id']}_{idx}", use_container_width=True):
+                            ticket["comentarios"][idx]["excluido"] = True
+                            ticket["comentarios"][idx]["texto"] = ""
+                            ticket["comentarios"][idx]["excluido_por"] = st.session_state.usuario["nome"]
+                            ticket["comentarios"][idx]["excluido_em"] = agora_formatado()
+                            ticket["atualizado_em"] = agora_formatado()
+                            registrar_historico(ticket, "Comentário excluído", f"Comentário de {comentario.get('autor', '')} excluído.")
+                            atualizar_ticket_nuvem(ticket)
+                            st.session_state.tickets = carregar_tickets_nuvem()
+                            st.session_state[chave_excluindo] = False
+                            st.rerun()
+
+                    with col_cancelar:
+                        if st.button("Cancelar", key=f"cancelar_exclusao_{ticket['id']}_{idx}", use_container_width=True):
+                            st.session_state[chave_excluindo] = False
+                            st.rerun()
+
+        st.markdown("#### Novo comentário")
+
         arquivos_comentario = st.file_uploader(
             "Anexar arquivos ao comentário:",
             type=TIPOS_ANEXOS,
@@ -1237,29 +1268,36 @@ def painel_ticket():
             key=f"anexos_comentario_{ticket['id']}_{st.session_state.uploader_key}",
         )
 
-        if st.button("Enviar comentário", key=f"enviar_comentario_{ticket['id']}", use_container_width=True):
-            if novo_comentario.strip() or arquivos_comentario:
-                anexos_comentario = salvar_uploads(arquivos_comentario)
-                ticket["comentarios"].append(
-                    {
-                        "autor": st.session_state.usuario["nome"],
-                        "texto": novo_comentario.strip(),
-                        "anexos": anexos_comentario,
-                        "criado_em": agora_formatado(),
-                        "excluido": False,
-                        "editado_por": "",
-                        "editado_em": "",
-                        "excluido_por": "",
-                        "excluido_em": "",
-                    }
-                )
-                ticket["atualizado_em"] = agora_formatado()
-                registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120] or "Comentário com anexo.")
-                atualizar_ticket_nuvem(ticket)
-                preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
-                st.session_state.tickets = carregar_tickets_nuvem()
-                st.session_state.uploader_key += 1
-                st.rerun()
+        novo_comentario = st.chat_input(
+            "Digite um comentário e pressione Enter",
+            key=f"chat_comentario_{ticket['id']}",
+        )
+
+        if novo_comentario:
+            anexos_comentario = salvar_uploads(arquivos_comentario)
+            ticket["comentarios"].append(
+                {
+                    "autor": st.session_state.usuario["nome"],
+                    "texto": novo_comentario.strip(),
+                    "anexos": anexos_comentario,
+                    "criado_em": agora_formatado(),
+                    "excluido": False,
+                    "editado_por": "",
+                    "editado_em": "",
+                    "excluido_por": "",
+                    "excluido_em": "",
+                }
+            )
+            ticket["atualizado_em"] = agora_formatado()
+            registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120] or "Comentário com anexo.")
+            atualizar_ticket_nuvem(ticket)
+            preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
+            st.session_state.tickets = carregar_tickets_nuvem()
+            st.session_state.uploader_key += 1
+            st.rerun()
+
+        if arquivos_comentario and not novo_comentario:
+            st.caption("Digite uma mensagem e pressione Enter para enviar junto com os anexos.")
 
         st.markdown("#### Histórico")
         historico = ticket.get("historico", [])
