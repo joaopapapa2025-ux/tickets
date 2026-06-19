@@ -1110,7 +1110,9 @@ def painel_ticket():
         if not ticket["comentarios"]:
             st.caption("Nenhum comentário ainda.")
 
-        for idx, comentario in enumerate(ticket["comentarios"]):
+        comentarios_ordenados = list(reversed(ticket["comentarios"]))
+
+        for idx, comentario in enumerate(comentarios_ordenados):
             autor = html.escape(comentario.get("autor", ""))
             texto = html.escape(comentario.get("texto", ""))
             criado_em = html.escape(comentario.get("criado_em", ""))
@@ -1172,6 +1174,15 @@ def painel_ticket():
 
 restaurar_login_por_url()
 aplicar_proxima_pagina()
+
+if st.session_state.logado and not st.session_state.ticket_url_aplicado:
+    ticket_url = st.query_params.get("ticket", "")
+
+    if ticket_url and str(ticket_url).isdigit():
+        st.session_state.ticket_aberto = int(ticket_url)
+        st.session_state.pagina_atual = "Kanban"
+
+    st.session_state.ticket_url_aplicado = True
 
 if not st.session_state.logado:
     left, center, right = st.columns([1, 1.15, 1])
