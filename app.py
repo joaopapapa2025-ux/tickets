@@ -1519,6 +1519,290 @@ elif pagina == "Tickets atribuídos a mim":
 elif pagina == "Dashboard":
     st.subheader("Dashboard executivo")
 
+    st.markdown(
+        """
+        <style>
+            .dash-hero {
+                background: linear-gradient(135deg, #082b57 0%, #0f4c81 58%, #ff4b4b 100%);
+                color: white;
+                padding: 22px 24px;
+                border-radius: 14px;
+                margin: 6px 0 18px 0;
+                box-shadow: 0 14px 32px rgba(8, 43, 87, 0.16);
+            }
+            .dash-hero h3 {
+                margin: 0 0 6px 0;
+                color: white;
+                font-size: 24px;
+            }
+            .dash-hero p {
+                margin: 0;
+                opacity: 0.88;
+                font-size: 14px;
+            }
+            .insight-card {
+                border: 1px solid #e7edf5;
+                background: #ffffff;
+                border-radius: 12px;
+                padding: 14px 16px;
+                min-height: 92px;
+                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+            }
+            .insight-label {
+                color: #64748b;
+                font-size: 12px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin-bottom: 6px;
+            }
+            .insight-value {
+                color: #0f172a;
+                font-size: 22px;
+                font-weight: 800;
+                margin-bottom: 3px;
+            }
+            .insight-note {
+                color: #64748b;
+                font-size: 13px;
+                line-height: 1.35;
+            }
+            .alert-line {
+                border-left: 4px solid #ff4b4b;
+                background: #fff6f6;
+                border-radius: 10px;
+                padding: 10px 12px;
+                margin-bottom: 8px;
+                color: #172033;
+            }
+            .ok-line {
+                border-left: 4px solid #16a34a;
+                background: #f0fdf4;
+                border-radius: 10px;
+                padding: 10px 12px;
+                margin-bottom: 8px;
+                color: #172033;
+            }
+            .data-table table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            .data-table th {
+                text-align: left;
+                background: #f8fafc;
+                color: #475569;
+                font-weight: 700;
+                padding: 10px 9px;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            .data-table td {
+                padding: 9px;
+                border-bottom: 1px solid #edf2f7;
+                color: #172033;
+                vertical-align: top;
+            }
+            .data-table tr:hover td {
+                background: #f8fbff;
+            }
+            .ticket-link {
+                color: #0f4c81 !important;
+                font-weight: 800;
+                text-decoration: none !important;
+            }
+            .ticket-link:hover {
+                text-decoration: underline !important;
+            }
+        </style>
+        <div class="dash-hero">
+            <h3>Central de performance dos tickets</h3>
+            <p>Visão executiva de volume, gargalos, tempo de resposta, tempo por etapa e resolução.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    def parse_dt_dashboard(valor):
+        return parse_data(valor) if valor else None
+
+    def horas_entre(inicio, fim):
+        if not inicio or not fim:
+            return None
+        return max((fim - inicio).total_seconds() / 3600, 0)
+
+    def formatar_horas(valor):
+        if valor is None or pd.isna(valor):
+            return "Sem dado"
+        if valor < 1:
+            return f"{valor * 60:.0f} min"
+        if valor < 24:
+            return f"{valor:.1f} h"
+        return f"{valor / 24:.1f} dias"
+
+    def media_segura(serie):
+        serie = pd.Series(serie).dropna()
+        return float(serie.mean()) if not serie.empty else None
+
+    def link_ticket_dashboard(ticket_id):
+        auth = st.query_params.get("auth", token_diario())
+        sid = st.query_params.get("sid", st.session_state.get("sid", ""))
+        return f"?auth={auth}&sid={sid}&ticket={ticket_id}"
+
+    def ticket_anchor(ticket_id):
+        numero = formatar_numero_ticket(ticket_id)
+        url = link_ticket_dashboard(ticket_id)
+        return f'<a class="ticket-link" href="{url}" target="_self">{numero}</a>'
+
+    def status_extraido_do_detalhe(detalhe):
+        if not detalhe:
+            return None
+
+        for linha in str(detalhe).splitlines():
+            if "Status" not in linha:
+                continue
+
+            encontrados = []
+            for status in STATUS:
+                posicao = linha.rfind(status)
+                if posicao >= 0:
+                    encontrados.append((posicao, status))
+
+            if encontrados:
+                return sorted(encontrados, key=lambda item: item[0])[-1][1]
+
+        return None
+
+    def eventos_status_ticket(ticket):
+        eventos = []
+
+        criado = parse_dt_dashboard(ticket.get("criado_em", ""))
+        if criado:
+            eventos.append(
+                {
+                    "quando": criado,
+                    "status": "Aberto",
+                    "origem": "Criação",
+                }
+            )
+
+        for item in ticket.get("historico", []):
+            quando = parse_dt_dashboard(item.get("criado_em", ""))
+            status_novo = status_extraido_do_detalhe(
+                f"{item.get('acao', '')}\n{item.get('detalhe', '')}"
+            )
+
+            if quando and status_novo:
+                eventos.append(
+                    {
+                        "quando": quando,
+                        "status": status_novo,
+                        "origem": item.get("acao", ""),
+                    }
+                )
+
+        eventos = sorted(eventos, key=lambda item: item["quando"])
+
+        eventos_limpos = []
+        for evento in eventos:
+            if not eventos_limpos or eventos_limpos[-1]["status"] != evento["status"]:
+                eventos_limpos.append(evento)
+
+        return eventos_limpos
+
+    def metricas_tempo_ticket(ticket):
+        criado = parse_dt_dashboard(ticket.get("criado_em", ""))
+        atualizado = parse_dt_dashboard(ticket.get("atualizado_em", ""))
+        agora_ref = agora()
+
+        comentarios_validos = [
+            c for c in ticket.get("comentarios", [])
+            if not c.get("excluido")
+        ]
+
+        primeira_resposta = None
+        for comentario in comentarios_validos:
+            autor = comentario.get("autor", "")
+            quando = parse_dt_dashboard(comentario.get("criado_em", ""))
+
+            if (
+                criado
+                and quando
+                and autor
+                and autor != ticket.get("solicitante", "")
+                and quando >= criado
+            ):
+                if primeira_resposta is None or quando < primeira_resposta:
+                    primeira_resposta = quando
+
+        eventos = eventos_status_ticket(ticket)
+        status_atual = ticket.get("status", "Aberto")
+
+        data_resolucao = None
+        for evento in eventos:
+            if evento["status"] == "Resolvido":
+                data_resolucao = evento["quando"]
+
+        if not data_resolucao and status_atual == "Resolvido":
+            data_resolucao = atualizado or agora_ref
+
+        fim_geral = data_resolucao if status_atual == "Resolvido" and data_resolucao else agora_ref
+
+        tempo_por_status = {status: 0.0 for status in STATUS}
+
+        if eventos:
+            for indice, evento in enumerate(eventos):
+                inicio = evento["quando"]
+
+                if indice + 1 < len(eventos):
+                    fim = eventos[indice + 1]["quando"]
+                else:
+                    fim = fim_geral
+
+                duracao = horas_entre(inicio, fim)
+
+                if duracao is not None and evento["status"] in tempo_por_status:
+                    tempo_por_status[evento["status"]] += duracao
+
+        tempo_resolucao = horas_entre(criado, data_resolucao) if data_resolucao else None
+        tempo_primeiro_retorno = horas_entre(criado, primeira_resposta) if primeira_resposta else None
+        tempo_total_ate_agora = horas_entre(criado, fim_geral) if criado else None
+
+        return {
+            "tempo_resolucao_h": tempo_resolucao,
+            "tempo_primeiro_retorno_h": tempo_primeiro_retorno,
+            "tempo_total_h": tempo_total_ate_agora,
+            "tempo_aberto_h": tempo_por_status.get("Aberto", 0),
+            "tempo_em_analise_h": tempo_por_status.get("Em análise", 0),
+            "tempo_aguardando_h": tempo_por_status.get("Aguardando retorno", 0),
+            "tempo_em_execucao_h": tempo_por_status.get("Em execução", 0),
+            "tempo_resolvido_h": tempo_por_status.get("Resolvido", 0),
+        }
+
+    def render_tabela_clicavel(df_tabela, colunas):
+        if df_tabela.empty:
+            st.caption("Nenhum registro encontrado.")
+            return
+
+        tabela = df_tabela[colunas].copy()
+
+        if "Ticket" in tabela.columns:
+            tabela["Ticket"] = tabela["Ticket"].astype(str)
+
+        html_tabela = tabela.to_html(
+            index=False,
+            escape=False,
+            classes="data-table-inner",
+        )
+
+        st.markdown(
+            f'<div class="data-table">{html_tabela}</div>',
+            unsafe_allow_html=True,
+        )
+
     colf1, colf2, colf3, colf4 = st.columns(4)
 
     with colf1:
@@ -1575,22 +1859,22 @@ elif pagina == "Dashboard":
     if filtro_periodo == "Mês atual":
         tickets_dashboard = [
             t for t in tickets_dashboard
-            if parse_data(t.get("criado_em", ""))
-            and parse_data(t.get("criado_em", "")).strftime("%Y-%m") == agora().strftime("%Y-%m")
+            if parse_dt_dashboard(t.get("criado_em", ""))
+            and parse_dt_dashboard(t.get("criado_em", "")).strftime("%Y-%m") == agora().strftime("%Y-%m")
         ]
 
     elif filtro_periodo == "Últimos 7 dias":
         tickets_dashboard = [
             t for t in tickets_dashboard
-            if parse_data(t.get("criado_em", ""))
-            and (hoje - parse_data(t.get("criado_em", "")).date()).days <= 7
+            if parse_dt_dashboard(t.get("criado_em", ""))
+            and (hoje - parse_dt_dashboard(t.get("criado_em", "")).date()).days <= 7
         ]
 
     elif filtro_periodo == "Últimos 30 dias":
         tickets_dashboard = [
             t for t in tickets_dashboard
-            if parse_data(t.get("criado_em", ""))
-            and (hoje - parse_data(t.get("criado_em", "")).date()).days <= 30
+            if parse_dt_dashboard(t.get("criado_em", ""))
+            and (hoje - parse_dt_dashboard(t.get("criado_em", "")).date()).days <= 30
         ]
 
     elif filtro_periodo == "Período específico":
@@ -1600,8 +1884,8 @@ elif pagina == "Dashboard":
         else:
             tickets_dashboard = [
                 t for t in tickets_dashboard
-                if parse_data(t.get("criado_em", ""))
-                and data_inicio <= parse_data(t.get("criado_em", "")).date() <= data_fim
+                if parse_dt_dashboard(t.get("criado_em", ""))
+                and data_inicio <= parse_dt_dashboard(t.get("criado_em", "")).date() <= data_fim
             ]
 
     if filtro_setor_dash != "Todos":
@@ -1628,46 +1912,69 @@ elif pagina == "Dashboard":
         registros = []
 
         for ticket in tickets_dashboard:
-            criado = parse_data(ticket.get("criado_em", ""))
+            criado = parse_dt_dashboard(ticket.get("criado_em", ""))
+            atualizado = parse_dt_dashboard(ticket.get("atualizado_em", ""))
+
             comentarios = ticket.get("comentarios", [])
-            comentarios_validos = [c for c in comentarios if not c.get("excluido")]
+            comentarios_validos = [
+                c for c in comentarios
+                if not c.get("excluido")
+            ]
+
+            tempos = metricas_tempo_ticket(ticket)
 
             registros.append(
                 {
                     "id": ticket.get("id"),
-                    "ticket": formatar_numero_ticket(ticket.get("id")),
-                    "titulo": ticket.get("titulo", ""),
-                    "nf_pedido": ticket.get("nf_pedido", ""),
-                    "cnpj": ticket.get("cnpj", ""),
-                    "status": ticket.get("status", ""),
-                    "prioridade": ticket.get("prioridade", ""),
-                    "setor_origem": ticket.get("setor_origem", ""),
-                    "setor_destino": ticket.get("setor_destino", ""),
-                    "solicitante": ticket.get("solicitante", ""),
-                    "responsavel": ticket.get("responsavel", ""),
-                    "dias_aberto": idade_ticket(ticket),
-                    "comentarios": len(comentarios_validos),
-                    "tem_anexo": len(ticket.get("anexos", [])) > 0,
-                    "criado_em": ticket.get("criado_em", ""),
+                    "Ticket": ticket_anchor(ticket.get("id")),
+                    "ticket_numero": formatar_numero_ticket(ticket.get("id")),
+                    "Título": html.escape(ticket.get("titulo", "")),
+                    "NF/Pedido": html.escape(ticket.get("nf_pedido", "")),
+                    "CNPJ": html.escape(ticket.get("cnpj", "")),
+                    "Status": ticket.get("status", ""),
+                    "Prioridade": ticket.get("prioridade", ""),
+                    "Setor origem": ticket.get("setor_origem", ""),
+                    "Setor destino": ticket.get("setor_destino", ""),
+                    "Solicitante": ticket.get("solicitante", ""),
+                    "Responsável": ticket.get("responsavel", ""),
+                    "Dias aberto": idade_ticket(ticket),
+                    "Comentários": len(comentarios_validos),
+                    "Tem anexo": "Sim" if len(ticket.get("anexos", [])) > 0 else "Não",
+                    "Criado em": ticket.get("criado_em", ""),
+                    "Atualizado em": ticket.get("atualizado_em", ""),
                     "data_criacao": criado.date() if criado else None,
+                    "data_resolucao": atualizado.date() if atualizado and ticket.get("status") == "Resolvido" else None,
+                    "Tempo resolução h": tempos["tempo_resolucao_h"],
+                    "Tempo primeiro retorno h": tempos["tempo_primeiro_retorno_h"],
+                    "Tempo total h": tempos["tempo_total_h"],
+                    "Aberto h": tempos["tempo_aberto_h"],
+                    "Em análise h": tempos["tempo_em_analise_h"],
+                    "Aguardando retorno h": tempos["tempo_aguardando_h"],
+                    "Em execução h": tempos["tempo_em_execucao_h"],
+                    "Resolvido h": tempos["tempo_resolvido_h"],
                 }
             )
 
         df = pd.DataFrame(registros)
 
         total = len(df)
-        abertos = len(df[df["status"] == "Aberto"])
-        em_andamento = len(df[df["status"].isin(["Em análise", "Em execução"])])
-        aguardando = len(df[df["status"] == "Aguardando retorno"])
-        resolvidos = len(df[df["status"] == "Resolvido"])
-        urgentes_abertos = len(df[(df["prioridade"] == "Urgente") & (df["status"] != "Resolvido")])
-        criticos = len(df[(df["dias_aberto"] >= 3) & (df["status"] != "Resolvido")])
-        sem_responsavel = len(df[(df["responsavel"] == "Não atribuído") & (df["status"] != "Resolvido")])
+        abertos = len(df[df["Status"] == "Aberto"])
+        em_andamento = len(df[df["Status"].isin(["Em análise", "Em execução"])])
+        aguardando = len(df[df["Status"] == "Aguardando retorno"])
+        resolvidos = len(df[df["Status"] == "Resolvido"])
+        urgentes_abertos = len(df[(df["Prioridade"] == "Urgente") & (df["Status"] != "Resolvido")])
+        criticos = len(df[(df["Dias aberto"] >= 3) & (df["Status"] != "Resolvido")])
+        sem_responsavel = len(df[(df["Responsável"] == "Não atribuído") & (df["Status"] != "Resolvido")])
         taxa_resolucao = (resolvidos / total * 100) if total else 0
 
-        abertos_df = df[df["status"] != "Resolvido"]
-        idade_media_abertos = abertos_df["dias_aberto"].mean() if not abertos_df.empty else 0
-        media_comentarios = df["comentarios"].mean() if total else 0
+        abertos_df = df[df["Status"] != "Resolvido"]
+        resolvidos_df = df[df["Status"] == "Resolvido"]
+
+        idade_media_abertos = abertos_df["Dias aberto"].mean() if not abertos_df.empty else 0
+        media_comentarios = df["Comentários"].mean() if total else 0
+        tempo_medio_resolucao = media_segura(resolvidos_df["Tempo resolução h"]) if not resolvidos_df.empty else None
+        tempo_medio_primeiro_retorno = media_segura(df["Tempo primeiro retorno h"])
+        tempo_medio_total_aberto = media_segura(abertos_df["Tempo total h"]) if not abertos_df.empty else None
 
         st.markdown("#### Resumo executivo")
 
@@ -1689,6 +1996,111 @@ elif pagina == "Dashboard":
 
         st.divider()
 
+        st.markdown("#### Indicadores de tempo")
+
+        col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+
+        with col_t1:
+            st.markdown(
+                f"""
+                <div class="insight-card">
+                    <div class="insight-label">Tempo médio de resolução</div>
+                    <div class="insight-value">{formatar_horas(tempo_medio_resolucao)}</div>
+                    <div class="insight-note">Entre abertura e status resolvido.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col_t2:
+            st.markdown(
+                f"""
+                <div class="insight-card">
+                    <div class="insight-label">Tempo médio de retorno</div>
+                    <div class="insight-value">{formatar_horas(tempo_medio_primeiro_retorno)}</div>
+                    <div class="insight-note">Da abertura até o primeiro comentário de outra pessoa.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col_t3:
+            st.markdown(
+                f"""
+                <div class="insight-card">
+                    <div class="insight-label">Tempo médio em aberto</div>
+                    <div class="insight-value">{formatar_horas(tempo_medio_total_aberto)}</div>
+                    <div class="insight-note">Tickets ainda não resolvidos.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with col_t4:
+            gargalos_status = {
+                "Aberto": media_segura(df["Aberto h"]),
+                "Em análise": media_segura(df["Em análise h"]),
+                "Aguardando retorno": media_segura(df["Aguardando retorno h"]),
+                "Em execução": media_segura(df["Em execução h"]),
+            }
+
+            gargalos_status_validos = {
+                k: v for k, v in gargalos_status.items()
+                if v is not None and v > 0
+            }
+
+            if gargalos_status_validos:
+                etapa_gargalo = max(gargalos_status_validos, key=gargalos_status_validos.get)
+                tempo_gargalo = gargalos_status_validos[etapa_gargalo]
+            else:
+                etapa_gargalo = "Sem dado"
+                tempo_gargalo = None
+
+            st.markdown(
+                f"""
+                <div class="insight-card">
+                    <div class="insight-label">Principal gargalo</div>
+                    <div class="insight-value">{etapa_gargalo}</div>
+                    <div class="insight-note">Tempo médio: {formatar_horas(tempo_gargalo)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.divider()
+
+        st.markdown("#### Tempo médio por etapa do funil")
+
+        etapas_tempo = pd.DataFrame(
+            [
+                {"Etapa": "Aberto", "Horas médias": media_segura(df["Aberto h"]) or 0},
+                {"Etapa": "Em análise", "Horas médias": media_segura(df["Em análise h"]) or 0},
+                {"Etapa": "Aguardando retorno", "Horas médias": media_segura(df["Aguardando retorno h"]) or 0},
+                {"Etapa": "Em execução", "Horas médias": media_segura(df["Em execução h"]) or 0},
+            ]
+        )
+
+        col_funil1, col_funil2 = st.columns([1.2, 1])
+
+        with col_funil1:
+            st.bar_chart(
+                etapas_tempo.set_index("Etapa"),
+                use_container_width=True,
+            )
+
+        with col_funil2:
+            tabela_etapas = etapas_tempo.copy()
+            tabela_etapas["Tempo médio"] = tabela_etapas["Horas médias"].apply(formatar_horas)
+            tabela_etapas = tabela_etapas[["Etapa", "Tempo médio"]]
+
+            st.dataframe(
+                tabela_etapas,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        st.divider()
+
         st.markdown("#### Insights rápidos")
 
         insights = []
@@ -1702,21 +2114,33 @@ elif pagina == "Dashboard":
         if urgentes_abertos > 0:
             insights.append(f"{urgentes_abertos} ticket(s) urgente(s) ainda não foram resolvidos.")
 
+        if tempo_medio_primeiro_retorno and tempo_medio_primeiro_retorno > 24:
+            insights.append(f"O tempo médio de primeiro retorno está acima de 1 dia: {formatar_horas(tempo_medio_primeiro_retorno)}.")
+
+        if tempo_medio_resolucao and tempo_medio_resolucao > 72:
+            insights.append(f"O tempo médio de resolução está acima de 3 dias: {formatar_horas(tempo_medio_resolucao)}.")
+
         if not df.empty:
-            setor_top = df["setor_destino"].value_counts().idxmax()
-            qtd_setor_top = df["setor_destino"].value_counts().max()
+            setor_top = df["Setor destino"].value_counts().idxmax()
+            qtd_setor_top = df["Setor destino"].value_counts().max()
             insights.append(f"O setor mais acionado no filtro atual é {setor_top}, com {qtd_setor_top} ticket(s).")
 
         if not abertos_df.empty:
-            responsavel_top = abertos_df["responsavel"].value_counts().idxmax()
-            qtd_resp_top = abertos_df["responsavel"].value_counts().max()
+            responsavel_top = abertos_df["Responsável"].value_counts().idxmax()
+            qtd_resp_top = abertos_df["Responsável"].value_counts().max()
             insights.append(f"O maior volume em aberto está com {responsavel_top}, com {qtd_resp_top} ticket(s).")
 
         if insights:
             for insight in insights:
-                st.info(insight)
+                st.markdown(
+                    f'<div class="alert-line">{html.escape(insight)}</div>',
+                    unsafe_allow_html=True,
+                )
         else:
-            st.success("Nenhum ponto crítico encontrado nos filtros selecionados.")
+            st.markdown(
+                '<div class="ok-line">Nenhum ponto crítico encontrado nos filtros selecionados.</div>',
+                unsafe_allow_html=True,
+            )
 
         st.divider()
 
@@ -1724,21 +2148,21 @@ elif pagina == "Dashboard":
 
         with col1:
             st.markdown("#### Tickets por status")
-            st.bar_chart(df["status"].value_counts())
+            st.bar_chart(df["Status"].value_counts())
 
         with col2:
             st.markdown("#### Tickets por prioridade")
-            st.bar_chart(df["prioridade"].value_counts())
+            st.bar_chart(df["Prioridade"].value_counts())
 
         col3, col4 = st.columns(2)
 
         with col3:
             st.markdown("#### Tickets por setor destino")
-            st.bar_chart(df["setor_destino"].value_counts())
+            st.bar_chart(df["Setor destino"].value_counts())
 
         with col4:
             st.markdown("#### Tickets por responsável")
-            st.bar_chart(df["responsavel"].value_counts())
+            st.bar_chart(df["Responsável"].value_counts())
 
         st.divider()
 
@@ -1750,7 +2174,7 @@ elif pagina == "Dashboard":
             st.caption("Não há datas suficientes para montar a evolução diária.")
         else:
             criados_por_dia = df_datas.groupby("data_criacao").size().rename("Criados")
-            resolvidos_por_dia = df_datas[df_datas["status"] == "Resolvido"].groupby("data_criacao").size().rename("Resolvidos")
+            resolvidos_por_dia = df_datas[df_datas["Status"] == "Resolvido"].groupby("data_criacao").size().rename("Resolvidos")
 
             evolucao = pd.concat([criados_por_dia, resolvidos_por_dia], axis=1).fillna(0)
             evolucao = evolucao.sort_index()
@@ -1763,18 +2187,18 @@ elif pagina == "Dashboard":
 
         with col5:
             st.markdown("#### Solicitantes que mais abriram tickets")
-            ranking_solicitantes = df["solicitante"].value_counts().reset_index()
+            ranking_solicitantes = df["Solicitante"].value_counts().reset_index()
             ranking_solicitantes.columns = ["Solicitante", "Tickets"]
             st.dataframe(ranking_solicitantes.head(10), use_container_width=True, hide_index=True)
 
         with col6:
             st.markdown("#### CNPJs mais recorrentes")
-            df_cnpj = df[df["cnpj"].astype(str).str.strip() != ""]
+            df_cnpj = df[df["CNPJ"].astype(str).str.strip() != ""]
 
             if df_cnpj.empty:
                 st.caption("Nenhum CNPJ informado nos tickets filtrados.")
             else:
-                ranking_cnpj = df_cnpj["cnpj"].value_counts().reset_index()
+                ranking_cnpj = df_cnpj["CNPJ"].value_counts().reset_index()
                 ranking_cnpj.columns = ["CNPJ", "Tickets"]
                 st.dataframe(ranking_cnpj.head(10), use_container_width=True, hide_index=True)
 
@@ -1782,133 +2206,120 @@ elif pagina == "Dashboard":
 
         with col7:
             st.markdown("#### Tickets por setor de origem")
-            st.bar_chart(df["setor_origem"].value_counts())
+            st.bar_chart(df["Setor origem"].value_counts())
 
         with col8:
             st.markdown("#### Tickets com mais comentários")
-            mais_comentados = df.sort_values("comentarios", ascending=False).head(10)
+            mais_comentados = df.sort_values("Comentários", ascending=False).head(10)
 
-            tabela_comentarios = mais_comentados[
-                ["ticket", "titulo", "status", "responsavel", "comentarios"]
-            ].rename(
-                columns={
-                    "ticket": "Ticket",
-                    "titulo": "Título",
-                    "status": "Status",
-                    "responsavel": "Responsável",
-                    "comentarios": "Comentários",
-                }
+            render_tabela_clicavel(
+                mais_comentados,
+                ["Ticket", "Título", "Status", "Responsável", "Comentários"],
             )
-
-            st.dataframe(tabela_comentarios, use_container_width=True, hide_index=True)
 
         st.divider()
 
-        st.markdown("#### Tabelas de ação")
+        st.markdown("#### Listas de ação")
 
-        aba1, aba2, aba3, aba4 = st.tabs(
+        aba1, aba2, aba3, aba4, aba5 = st.tabs(
             [
                 "Críticos",
                 "Urgentes abertos",
                 "Sem responsável",
-                "Mais antigos em aberto",
+                "Mais antigos",
+                "Sem retorno",
             ]
         )
 
         with aba1:
-            criticos_df = df[(df["dias_aberto"] >= 3) & (df["status"] != "Resolvido")].sort_values("dias_aberto", ascending=False)
+            criticos_df = df[
+                (df["Dias aberto"] >= 3)
+                & (df["Status"] != "Resolvido")
+            ].sort_values("Dias aberto", ascending=False)
 
             if criticos_df.empty:
                 st.success("Nenhum ticket crítico.")
             else:
-                st.dataframe(
-                    criticos_df[
-                        ["ticket", "titulo", "nf_pedido", "cnpj", "status", "prioridade", "setor_destino", "responsavel", "dias_aberto"]
-                    ].rename(
-                        columns={
-                            "ticket": "Ticket",
-                            "titulo": "Título",
-                            "nf_pedido": "NF/Pedido",
-                            "cnpj": "CNPJ",
-                            "status": "Status",
-                            "prioridade": "Prioridade",
-                            "setor_destino": "Setor destino",
-                            "responsavel": "Responsável",
-                            "dias_aberto": "Dias aberto",
-                        }
-                    ),
-                    use_container_width=True,
-                    hide_index=True,
+                render_tabela_clicavel(
+                    criticos_df,
+                    ["Ticket", "Título", "NF/Pedido", "CNPJ", "Status", "Prioridade", "Setor destino", "Responsável", "Dias aberto"],
                 )
 
         with aba2:
-            urgentes_df = df[(df["prioridade"] == "Urgente") & (df["status"] != "Resolvido")].sort_values("dias_aberto", ascending=False)
+            urgentes_df = df[
+                (df["Prioridade"] == "Urgente")
+                & (df["Status"] != "Resolvido")
+            ].sort_values("Dias aberto", ascending=False)
 
             if urgentes_df.empty:
                 st.success("Nenhum ticket urgente em aberto.")
             else:
-                st.dataframe(
-                    urgentes_df[
-                        ["ticket", "titulo", "status", "setor_destino", "responsavel", "dias_aberto"]
-                    ].rename(
-                        columns={
-                            "ticket": "Ticket",
-                            "titulo": "Título",
-                            "status": "Status",
-                            "setor_destino": "Setor destino",
-                            "responsavel": "Responsável",
-                            "dias_aberto": "Dias aberto",
-                        }
-                    ),
-                    use_container_width=True,
-                    hide_index=True,
+                render_tabela_clicavel(
+                    urgentes_df,
+                    ["Ticket", "Título", "Status", "Setor destino", "Responsável", "Dias aberto"],
                 )
 
         with aba3:
-            sem_resp_df = df[(df["responsavel"] == "Não atribuído") & (df["status"] != "Resolvido")].sort_values("dias_aberto", ascending=False)
+            sem_resp_df = df[
+                (df["Responsável"] == "Não atribuído")
+                & (df["Status"] != "Resolvido")
+            ].sort_values("Dias aberto", ascending=False)
 
             if sem_resp_df.empty:
                 st.success("Nenhum ticket sem responsável.")
             else:
-                st.dataframe(
-                    sem_resp_df[
-                        ["ticket", "titulo", "status", "prioridade", "setor_destino", "dias_aberto"]
-                    ].rename(
-                        columns={
-                            "ticket": "Ticket",
-                            "titulo": "Título",
-                            "status": "Status",
-                            "prioridade": "Prioridade",
-                            "setor_destino": "Setor destino",
-                            "dias_aberto": "Dias aberto",
-                        }
-                    ),
-                    use_container_width=True,
-                    hide_index=True,
+                render_tabela_clicavel(
+                    sem_resp_df,
+                    ["Ticket", "Título", "Status", "Prioridade", "Setor destino", "Dias aberto"],
                 )
 
         with aba4:
-            antigos = df[df["status"] != "Resolvido"].sort_values("dias_aberto", ascending=False).head(15)
+            antigos = df[df["Status"] != "Resolvido"].sort_values("Dias aberto", ascending=False).head(15)
 
             if antigos.empty:
                 st.success("Nenhum ticket em aberto.")
             else:
-                st.dataframe(
-                    antigos[
-                        ["ticket", "titulo", "nf_pedido", "cnpj", "status", "prioridade", "setor_destino", "responsavel", "dias_aberto"]
-                    ].rename(
-                        columns={
-                            "ticket": "Ticket",
-                            "titulo": "Título",
-                            "nf_pedido": "NF/Pedido",
-                            "cnpj": "CNPJ",
-                            "status": "Status",
-                            "prioridade": "Prioridade",
-                            "setor_destino": "Setor destino",
-                            "responsavel": "Responsável",
-                            "dias_aberto": "Dias aberto",
-                        }
-                    ),
-                    use_container_width=True,
-                    hide_index=True,
+                render_tabela_clicavel(
+                    antigos,
+                    ["Ticket", "Título", "NF/Pedido", "CNPJ", "Status", "Prioridade", "Setor destino", "Responsável", "Dias aberto"],
                 )
+
+        with aba5:
+            sem_retorno_df = df[
+                (df["Status"] != "Resolvido")
+                & (df["Tempo primeiro retorno h"].isna())
+            ].sort_values("Dias aberto", ascending=False)
+
+            if sem_retorno_df.empty:
+                st.success("Todos os tickets em aberto filtrados já têm retorno registrado.")
+            else:
+                render_tabela_clicavel(
+                    sem_retorno_df,
+                    ["Ticket", "Título", "Status", "Prioridade", "Setor destino", "Responsável", "Dias aberto"],
+                )
+
+        st.divider()
+
+        st.markdown("#### Base analítica")
+
+        base_exportacao = df.copy()
+        base_exportacao["Tempo resolução"] = base_exportacao["Tempo resolução h"].apply(formatar_horas)
+        base_exportacao["Tempo primeiro retorno"] = base_exportacao["Tempo primeiro retorno h"].apply(formatar_horas)
+        base_exportacao["Tempo total"] = base_exportacao["Tempo total h"].apply(formatar_horas)
+
+        render_tabela_clicavel(
+            base_exportacao.sort_values("id", ascending=False).head(100),
+            [
+                "Ticket",
+                "Título",
+                "NF/Pedido",
+                "CNPJ",
+                "Status",
+                "Prioridade",
+                "Setor destino",
+                "Responsável",
+                "Dias aberto",
+                "Tempo primeiro retorno",
+                "Tempo resolução",
+            ],
+        )
