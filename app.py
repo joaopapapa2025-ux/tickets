@@ -1517,7 +1517,7 @@ elif pagina == "Tickets atribuídos a mim":
                     st.button("Tratar ticket", key=f"ir_kanban_atribuidos_{ticket['id']}", on_click=abrir_ticket_no_kanban, args=(ticket["id"],), use_container_width=True)
 
 elif pagina == "Dashboard":
-    st.subheader("Dashboard executivo")
+    st.subheader("Dashboard")
 
     st.markdown(
         """
