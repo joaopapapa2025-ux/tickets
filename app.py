@@ -1291,6 +1291,12 @@ def painel_ticket():
                     "Ticket atualizado",
                     f"{st.session_state.usuario['nome']} atualizou o ticket {formatar_numero_ticket(ticket['id'])}: {'; '.join(mudancas)}"
                 )
+
+                notificar_envolvidos(
+                    ticket,
+                    "Ticket atualizado",
+                    f"{st.session_state.usuario['nome']} atualizou o ticket {formatar_numero_ticket(ticket['id'])}: {'; '.join(mudancas)}"
+                )
                 destinatario = nome_para_notificacao(
                     ticket,
                     responsavel_anterior=responsavel_anterior,
@@ -1518,10 +1524,14 @@ def painel_ticket():
 
         if novo_comentario:
             anexos_comentario = salvar_uploads(arquivos_comentario)
+
+            texto_comentario = novo_comentario.strip()
+            mencoes = mencoes_no_texto(texto_comentario)
+
             ticket["comentarios"].append(
                 {
                     "autor": st.session_state.usuario["nome"],
-                    "texto": novo_comentario.strip(),
+                    "texto": texto_comentario,
                     "anexos": anexos_comentario,
                     "criado_em": agora_formatado(),
                     "excluido": False,
@@ -1531,11 +1541,9 @@ def painel_ticket():
                     "excluido_em": "",
                 }
             )
-            ticket["atualizado_em"] = agora_formatado()
-            registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120] or "Comentário com anexo.")
 
-            mencoes = set(usuarios_mencao)
-            mencoes.update(mencoes_no_texto(novo_comentario))
+            ticket["atualizado_em"] = agora_formatado()
+            registrar_historico(ticket, "Comentário adicionado", texto_comentario[:120] or "Comentário com anexo.")
 
             notificar_envolvidos(
                 ticket,
@@ -1634,6 +1642,12 @@ pagina = st.session_state.pagina_atual
 if pagina.startswith("Notificações"):
     pagina = "Notificações"
 
+
+pagina = st.session_state.pagina_atual
+
+if pagina.startswith("Notificações"):
+    pagina = "Notificações"
+
 st.title("Central de Tickets")
 st.caption("Gestão interna de solicitações entre áreas")
 
@@ -1699,6 +1713,36 @@ if pagina == "Novo ticket":
             st.session_state.proxima_pagina = "Kanban"
             st.session_state.uploader_key += 1
             st.rerun()
+
+elif pagina == "Notificações":
+    st.subheader("Notificações")
+
+    notificacoes_usuario = notificacoes_do_usuario(
+        st.session_state.tickets,
+        usuario["login"],
+    )
+
+    nao_lidas = [n for n in notificacoes_usuario if not n.get("lida")]
+    lidas = [n for n in notificacoes_usuario if n.get("lida")]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Não lidas", len(nao_lidas))
+    c2.metric("Total", len(notificacoes_usuario))
+    c3.metric("Lidas", len(lidas))
+
+    st.divider()
+
+    if not notificacoes_usuario:
+        st.info("Você ainda não tem notificações.")
+    else:
+        filtro_notificacao = st.radio(
+            "Visualizar",
+            ["Não lidas", "Todas"],
+            horizontal=True,
+            key="filtro_notificacoes",
+        )
+
+        lista_notificacoes = nao_lidas if filtro_notificacao == "Não lidas" else notificacoes_usuario
 
 elif pagina == "Notificações":
     st.subheader("Notificações")
