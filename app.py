@@ -994,6 +994,7 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, nf_p
         "prioridade": prioridade,
         "status": "Aberto",
         "comentarios": [],
+        "notificacoes": [],
         "historico": [],
         "criado_em": agora_formatado(),
         "atualizado_em": agora_formatado(),
@@ -1005,6 +1006,13 @@ def criar_ticket(titulo, descricao, setor_destino, prioridade, responsavel, nf_p
         detalhe += f" NF/Pedido: {nf_pedido}."
 
     registrar_historico(ticket, "Ticket criado", detalhe)
+    responsavel_login = login_por_nome(responsavel)
+    criar_notificacao(
+        ticket,
+        responsavel_login,
+        "Novo ticket",
+        f"Você foi atribuído ao ticket {formatar_numero_ticket(ticket['id'])}."
+    )
     salvar_ticket_nuvem(ticket)
     st.session_state.tickets = carregar_tickets_nuvem()
     preparar_notificacao(ticket, "Novo ticket atribuído")
@@ -1277,6 +1285,12 @@ def painel_ticket():
 
             if mudancas:
                 registrar_historico(ticket, "Ticket atualizado", "; ".join(mudancas))
+
+                notificar_envolvidos(
+                    ticket,
+                    "Ticket atualizado",
+                    f"{st.session_state.usuario['nome']} atualizou o ticket {formatar_numero_ticket(ticket['id'])}: {'; '.join(mudancas)}"
+                )
                 destinatario = nome_para_notificacao(
                     ticket,
                     responsavel_anterior=responsavel_anterior,
@@ -1490,6 +1504,13 @@ def painel_ticket():
             key=f"anexos_comentario_{ticket['id']}_{st.session_state.uploader_key}",
         )
 
+        usuarios_mencao = st.multiselect(
+            "Mencionar pessoas",
+            options=list(USUARIOS.keys()),
+            format_func=lambda email: USUARIOS[email]["nome"],
+            key=f"mencoes_comentario_{ticket['id']}",
+        )
+
         novo_comentario = st.chat_input(
             "Digite um comentário e pressione Enter",
             key=f"chat_comentario_{ticket['id']}",
@@ -1512,6 +1533,17 @@ def painel_ticket():
             )
             ticket["atualizado_em"] = agora_formatado()
             registrar_historico(ticket, "Comentário adicionado", novo_comentario.strip()[:120] or "Comentário com anexo.")
+
+            mencoes = set(usuarios_mencao)
+            mencoes.update(mencoes_no_texto(novo_comentario))
+
+            notificar_envolvidos(
+                ticket,
+                "Novo comentário",
+                f"{st.session_state.usuario['nome']} comentou no ticket {formatar_numero_ticket(ticket['id'])}.",
+                logins_extras=mencoes,
+            )
+
             atualizar_ticket_nuvem(ticket)
             preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
             sincronizar_ticket_local(ticket)
@@ -1578,7 +1610,18 @@ with st.sidebar:
     st.caption(usuario["email"])
     st.caption(f"Auth diária: {token_diario()}")
 
-    st.radio("Menu", ["Kanban", "Novo ticket", "Meus tickets", "Tickets atribuídos a mim", "Dashboard"], key="pagina_atual")
+    notificacoes_usuario_menu = notificacoes_do_usuario(
+        st.session_state.tickets,
+        usuario["login"],
+    )
+    qtd_nao_lidas_menu = len([n for n in notificacoes_usuario_menu if not n.get("lida")])
+    texto_notificacoes = f"Notificações ({qtd_nao_lidas_menu})" if qtd_nao_lidas_menu else "Notificações"
+
+    st.radio(
+        "Menu",
+        ["Kanban", "Novo ticket", "Meus tickets", "Tickets atribuídos a mim", texto_notificacoes, "Dashboard"],
+        key="pagina_atual",
+    )
 
     st.divider()
 
@@ -1587,6 +1630,9 @@ with st.sidebar:
 
 
 pagina = st.session_state.pagina_atual
+
+if pagina.startswith("Notificações"):
+    pagina = "Notificações"
 
 st.title("Central de Tickets")
 st.caption("Gestão interna de solicitações entre áreas")
@@ -1653,6 +1699,73 @@ if pagina == "Novo ticket":
             st.session_state.proxima_pagina = "Kanban"
             st.session_state.uploader_key += 1
             st.rerun()
+
+elif pagina == "Notificações":
+    st.subheader("Notificações")
+
+    notificacoes_usuario = notificacoes_do_usuario(
+        st.session_state.tickets,
+        usuario["login"],
+    )
+
+    nao_lidas = [n for n in notificacoes_usuario if not n.get("lida")]
+    lidas = [n for n in notificacoes_usuario if n.get("lida")]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Não lidas", len(nao_lidas))
+    c2.metric("Total", len(notificacoes_usuario))
+    c3.metric("Lidas", len(lidas))
+
+    st.divider()
+
+    if not notificacoes_usuario:
+        st.info("Você ainda não tem notificações.")
+    else:
+        filtro_notificacao = st.radio(
+            "Visualizar",
+            ["Não lidas", "Todas"],
+            horizontal=True,
+            key="filtro_notificacoes",
+        )
+
+        lista_notificacoes = nao_lidas if filtro_notificacao == "Não lidas" else notificacoes_usuario
+
+        if not lista_notificacoes:
+            st.success("Nenhuma notificação pendente.")
+        else:
+            for notificacao in lista_notificacoes:
+                ticket_id = notificacao.get("ticket_id")
+                titulo_ticket = notificacao.get("ticket_titulo", "")
+                status_lida = "Lida" if notificacao.get("lida") else "Nova"
+
+                with st.container(border=True):
+                    col_n1, col_n2 = st.columns([4, 1])
+
+                    with col_n1:
+                        st.markdown(f"**{status_lida} | {notificacao.get('tipo', '')}**")
+                        st.write(notificacao.get("mensagem", ""))
+                        st.caption(
+                            f"{formatar_numero_ticket(ticket_id)} - {titulo_ticket} | "
+                            f"{notificacao.get('autor', '')} em {notificacao.get('criado_em', '')}"
+                        )
+
+                    with col_n2:
+                        st.button(
+                            "Abrir ticket",
+                            key=f"abrir_notificacao_{ticket_id}_{notificacao.get('id')}",
+                            on_click=abrir_ticket_pela_notificacao,
+                            args=(ticket_id, notificacao.get("id")),
+                            use_container_width=True,
+                        )
+
+                        if not notificacao.get("lida"):
+                            if st.button(
+                                "Marcar lida",
+                                key=f"lida_notificacao_{ticket_id}_{notificacao.get('id')}",
+                                use_container_width=True,
+                            ):
+                                marcar_notificacao_lida(ticket_id, notificacao.get("id"))
+                                st.rerun()
 
 elif pagina == "Kanban":
     st.subheader("Todos os tickets")
