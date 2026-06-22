@@ -1525,7 +1525,7 @@ def painel_ticket():
         texto_atual = st.text_area(
             "Comentário",
             key=comentario_key,
-            placeholder="placeholder="Digite o comentário aqui. Para mencionar alguém, use o campo acima.",",
+            placeholder="placeholder="Digite o comentário aqui. Para mencionar alguém, use o campo acima.",
             height=110,
         )
 
