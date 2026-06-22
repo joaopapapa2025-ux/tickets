@@ -1762,36 +1762,6 @@ if pagina == "Novo ticket":
             st.session_state.uploader_key += 1
             st.rerun()
 
-elif pagina == "Notificações":
-    st.subheader("Notificações")
-
-    notificacoes_usuario = notificacoes_do_usuario(
-        st.session_state.tickets,
-        usuario["login"],
-    )
-
-    nao_lidas = [n for n in notificacoes_usuario if not n.get("lida")]
-    lidas = [n for n in notificacoes_usuario if n.get("lida")]
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Não lidas", len(nao_lidas))
-    c2.metric("Total", len(notificacoes_usuario))
-    c3.metric("Lidas", len(lidas))
-
-    st.divider()
-
-    if not notificacoes_usuario:
-        st.info("Você ainda não tem notificações.")
-    else:
-        filtro_notificacao = st.radio(
-            "Visualizar",
-            ["Não lidas", "Todas"],
-            horizontal=True,
-            key="filtro_notificacoes",
-        )
-
-        lista_notificacoes = nao_lidas if filtro_notificacao == "Não lidas" else notificacoes_usuario
-
         if not lista_notificacoes:
             st.success("Nenhuma notificação pendente.")
         else:
