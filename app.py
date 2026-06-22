@@ -491,6 +491,139 @@ def registrar_historico(ticket, acao, detalhe=""):
         }
     )
 
+def usuario_por_email(email):
+    dados = USUARIOS.get(email)
+
+    if not dados:
+        return None
+
+    item = dados.copy()
+    item["login"] = email
+    return item
+
+
+def login_por_nome(nome):
+    for email, dados in USUARIOS.items():
+        if dados["nome"] == nome:
+            return email
+
+    return ""
+
+
+def mencoes_no_texto(texto):
+    texto_busca = f" {texto.lower()} "
+    encontrados = set()
+
+    for email, dados in USUARIOS.items():
+        usuario = dados.get("usuario", "").lower()
+        nome = dados.get("nome", "").lower()
+
+        possibilidades = [
+            f"@{email.lower()}",
+            f"@{usuario}",
+            f"@{nome}",
+            f"@{nome.replace(' ', '.')}",
+            f"@{nome.replace(' ', '')}",
+        ]
+
+        if any(mencao in texto_busca for mencao in possibilidades):
+            encontrados.add(email)
+
+    return encontrados
+
+
+def criar_notificacao(ticket, destinatario_login, tipo, mensagem):
+    if not destinatario_login:
+        return
+
+    usuario_atual = st.session_state.get("usuario")
+
+    if usuario_atual and destinatario_login == usuario_atual.get("login"):
+        return
+
+    destinatario = usuario_por_email(destinatario_login)
+
+    if not destinatario:
+        return
+
+    notificacoes = ticket.setdefault("notificacoes", [])
+
+    notificacoes.append(
+        {
+            "id": uuid.uuid4().hex,
+            "destinatario_login": destinatario_login,
+            "destinatario_nome": destinatario["nome"],
+            "tipo": tipo,
+            "mensagem": mensagem,
+            "ticket_id": ticket.get("id", 0),
+            "lida": False,
+            "criado_em": agora_formatado(),
+            "autor": usuario_atual["nome"] if usuario_atual else "Sistema",
+        }
+    )
+
+
+def notificar_envolvidos(ticket, tipo, mensagem, logins_extras=None):
+    destinatarios = set()
+
+    solicitante_login = ticket.get("solicitante_login", "")
+    responsavel_login = login_por_nome(ticket.get("responsavel", ""))
+
+    if solicitante_login:
+        destinatarios.add(solicitante_login)
+
+    if responsavel_login:
+        destinatarios.add(responsavel_login)
+
+    for login in logins_extras or []:
+        if login:
+            destinatarios.add(login)
+
+    for login in destinatarios:
+        criar_notificacao(ticket, login, tipo, mensagem)
+
+
+def notificacoes_do_usuario(tickets_base, login):
+    itens = []
+
+    for ticket in tickets_base:
+        for notificacao in ticket.get("notificacoes", []):
+            if notificacao.get("destinatario_login") == login:
+                item = notificacao.copy()
+                item["ticket_id"] = ticket.get("id")
+                item["ticket_titulo"] = ticket.get("titulo", "")
+                itens.append(item)
+
+    return sorted(
+        itens,
+        key=lambda item: parse_data(item.get("criado_em", "")) or datetime.min,
+        reverse=True,
+    )
+
+
+def marcar_notificacao_lida(ticket_id, notificacao_id):
+    ticket = next((t for t in st.session_state.tickets if t["id"] == ticket_id), None)
+
+    if not ticket:
+        return
+
+    for notificacao in ticket.get("notificacoes", []):
+        if notificacao.get("id") == notificacao_id:
+            notificacao["lida"] = True
+            break
+
+    atualizar_ticket_nuvem(ticket)
+    sincronizar_ticket_local(ticket)
+
+
+def abrir_ticket_pela_notificacao(ticket_id, notificacao_id=None):
+    if notificacao_id:
+        marcar_notificacao_lida(ticket_id, notificacao_id)
+
+    st.session_state.ticket_aberto = ticket_id
+    st.session_state.proxima_pagina = "Kanban"
+    st.rerun()
+
 def salvar_arquivo_em_chunks(arquivo):
     conteudo = arquivo.getvalue()
     tamanho_mb = len(conteudo) / (1024 * 1024)
@@ -636,6 +769,19 @@ def normalizar_ticket(ticket):
     ticket.setdefault("criado_em", "")
     ticket.setdefault("atualizado_em", "")
     ticket.setdefault("ticket_origem_id", None)
+
+    ticket.setdefault("notificacoes", [])
+
+    for notificacao in ticket["notificacoes"]:
+        notificacao.setdefault("id", uuid.uuid4().hex)
+        notificacao.setdefault("destinatario_login", "")
+        notificacao.setdefault("destinatario_nome", "")
+        notificacao.setdefault("tipo", "")
+        notificacao.setdefault("mensagem", "")
+        notificacao.setdefault("ticket_id", ticket.get("id", 0))
+        notificacao.setdefault("lida", False)
+        notificacao.setdefault("criado_em", "")
+        notificacao.setdefault("autor", "")
 
     for comentario in ticket["comentarios"]:
         comentario.setdefault("anexos", [])
