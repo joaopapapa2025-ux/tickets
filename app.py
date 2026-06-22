@@ -1525,52 +1525,47 @@ def painel_ticket():
         texto_atual = st.text_area(
             "Comentário",
             key=comentario_key,
-            placeholder="Digite um comentário. Use @Nome para mencionar alguém, exemplo: @Rodrigo Sarlo",
+            placeholder="placeholder="Digite o comentário aqui. Para mencionar alguém, use o campo acima.",",
             height=110,
         )
 
-        def encontrar_mencao_em_digitacao(texto):
-            posicao = texto.rfind("@")
+        busca_mencao = st.text_input(
+            "Adicionar menção",
+            placeholder="Digite parte do nome, exemplo: joã",
+            key=f"busca_mencao_{ticket['id']}",
+        )
 
-            if posicao == -1:
-                return None, ""
-
-            depois_arroba = texto[posicao + 1:]
-
-            if "\n" in depois_arroba:
-                return None, ""
-
-            if len(depois_arroba) > 40:
-                return None, ""
-
-            return posicao, depois_arroba.strip().lower()
-
-        posicao_mencao, termo_mencao = encontrar_mencao_em_digitacao(texto_atual)
-
-        if posicao_mencao is not None and termo_mencao:
+        if busca_mencao.strip():
+            termo_mencao = busca_mencao.strip().lower()
             sugestoes = []
 
             for email, dados in USUARIOS.items():
                 nome = dados["nome"]
                 usuario_sistema = dados.get("usuario", "")
-
                 texto_busca = f"{nome} {usuario_sistema} {email}".lower()
 
                 if termo_mencao in texto_busca:
                     sugestoes.append((email, nome))
 
             if sugestoes:
-                st.caption("Sugestões de menção")
+                st.caption("Clique para inserir no comentário")
 
                 colunas_sugestoes = st.columns(min(len(sugestoes), 4))
 
                 for indice, (email, nome) in enumerate(sugestoes[:4]):
                     with colunas_sugestoes[indice % len(colunas_sugestoes)]:
                         if st.button(f"@{nome}", key=f"sugerir_mencao_{ticket['id']}_{email}", use_container_width=True):
-                            antes = texto_atual[:posicao_mencao]
-                            depois = texto_atual[posicao_mencao + 1 + len(termo_mencao):]
-                            st.session_state[comentario_key] = f"{antes}@{nome} {depois.lstrip()}"
+                            texto_base = st.session_state.get(comentario_key, "").rstrip()
+
+                            if texto_base:
+                                st.session_state[comentario_key] = f"{texto_base} @{nome} "
+                            else:
+                                st.session_state[comentario_key] = f"@{nome} "
+
+                            st.session_state[f"busca_mencao_{ticket['id']}"] = ""
                             st.rerun()
+            else:
+                st.caption("Nenhuma pessoa encontrada.")
 
         col_envio1, col_envio2 = st.columns([1, 4])
 
