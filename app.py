@@ -1001,6 +1001,11 @@ def render_card(ticket):
         args=(ticket["id"],),
         use_container_width=True,
     )
+
+def abrir_ticket(ticket_id):
+    st.session_state.ticket_aberto = ticket_id
+    st.rerun()
+
 def abrir_ticket_no_kanban(ticket_id):
     st.session_state.ticket_aberto = ticket_id
     st.session_state.proxima_pagina = "Kanban"
