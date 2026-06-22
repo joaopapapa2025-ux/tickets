@@ -1019,12 +1019,6 @@ def mostrar_logo():
     except Exception:
         st.markdown("### Papapa")
 
-def mostrar_logo_quickets():
-    try:
-        st.image("Quickets.png", width=320)
-    except Exception:
-        st.markdown("## Quickets")
-
 def render_notificacao_whatsapp():
     aviso = st.session_state.get("notificacao_whatsapp")
 
@@ -1448,14 +1442,8 @@ with st.sidebar:
 
 pagina = st.session_state.pagina_atual
 
-topo_logo, topo_texto = st.columns([1, 4])
-
-with topo_logo:
-    mostrar_logo_quickets()
-
-with topo_texto:
-    st.markdown("### Central de Tickets")
-    st.caption("Gestão interna de solicitações entre áreas")
+st.title("Central de Tickets")
+st.caption("Gestão interna de solicitações entre áreas")
 
 render_notificacao_whatsapp()
 
