@@ -304,6 +304,67 @@ def texto_idade_ticket(dias):
 
     return f"Aberto há {dias} dias"
 
+class FeriadosBrasil(AbstractHolidayCalendar):
+    rules = [
+        Holiday("Confraternização Universal", month=1, day=1),
+        Holiday("Tiradentes", month=4, day=21),
+        Holiday("Dia do Trabalho", month=5, day=1),
+        Holiday("Corpus Christi", month=6, day=4),
+        Holiday("Independência", month=9, day=7),
+        Holiday("Nossa Sra Aparecida", month=10, day=12),
+        Holiday("Finados", month=11, day=2),
+        Holiday("Proclamação da República", month=11, day=15),
+        Holiday("Natal", month=12, day=25),
+    ]
+
+
+def feriados_brasil(inicio, fim):
+    if not inicio or not fim:
+        return set()
+
+    calendario = FeriadosBrasil()
+    feriados = calendario.holidays(
+        start=inicio.date() - timedelta(days=1),
+        end=fim.date() + timedelta(days=1),
+    )
+
+    return {data.date() for data in feriados}
+
+
+def eh_dia_util(data, feriados):
+    return data.weekday() < 5 and data.date() not in feriados
+
+
+def horas_uteis_entre(inicio, fim):
+    if not inicio or not fim or fim <= inicio:
+        return None
+
+    feriados = feriados_brasil(inicio, fim)
+    total_horas = 0.0
+    cursor = inicio
+
+    while cursor < fim:
+        proximo_dia = datetime.combine(cursor.date() + timedelta(days=1), datetime.min.time())
+        limite = min(proximo_dia, fim)
+
+        if eh_dia_util(cursor, feriados):
+            total_horas += (limite - cursor).total_seconds() / 3600
+
+        cursor = limite
+
+    return max(total_horas, 0)
+
+
+def horas_corridas_entre(inicio, fim):
+    if not inicio or not fim or fim <= inicio:
+        return None
+
+    return max((fim - inicio).total_seconds() / 3600, 0)
+
+
+def formatar_tempo_duplo(horas_corridas, horas_uteis):
+    return f"{formatar_horas(horas_corridas)} corridos | {formatar_horas(horas_uteis)} úteis"
+
 
 def usuarios_do_setor(setor):
     return [dados["nome"] for dados in USUARIOS.values() if dados["setor"] == setor]
@@ -865,6 +926,72 @@ def aplicar_filtros(tickets, prefixo, incluir_filtro_mes=True):
 
     return tickets
 
+def render_card(ticket):
+    prioridade = prioridade_classe(ticket["prioridade"])
+    dias = idade_ticket(ticket)
+    classe_idade = classe_idade_ticket(dias)
+
+    titulo = html.escape(ticket["titulo"])
+    origem = html.escape(ticket["setor_origem"])
+    destino = html.escape(ticket["setor_destino"])
+    responsavel = html.escape(ticket["responsavel"])
+    solicitante = html.escape(ticket["solicitante"])
+    criado_em = html.escape(ticket.get("criado_em", ""))
+    nf_pedido = html.escape(ticket.get("nf_pedido", ""))
+    cnpj = html.escape(ticket.get("cnpj", ""))
+    origem_id = limpar_id_origem(ticket.get("ticket_origem_id"))
+
+    linhas_meta = [
+        f"{origem} para {destino}",
+        f"Responsável: {responsavel}",
+        f"Solicitante: {solicitante}",
+        f"Criado em: {criado_em}",
+    ]
+
+    if nf_pedido:
+        linhas_meta.append(f"NF/Pedido: {nf_pedido}")
+
+    if cnpj:
+        linhas_meta.append(f"CNPJ: {cnpj}")
+
+    if ticket.get("anexos"):
+        linhas_meta.append(f"Anexos: {len(ticket.get('anexos', []))}")
+
+    if origem_id:
+        linhas_meta.append(f"Originado do {formatar_numero_ticket(origem_id)}")
+
+    linhas_meta_html = "\n".join(
+        f'<div class="ticket-meta">{linha}</div>'
+        for linha in linhas_meta
+        if linha
+    )
+
+    if ticket.get("status") == "Resolvido":
+        pills_html = '<span class="ticket-pill age-green">Resolvido</span>'
+    else:
+        pills_html = f"""
+            <span class="ticket-pill pill-{prioridade}">{ticket["prioridade"]}</span>
+            <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
+        """
+
+    st.markdown(
+        f"""
+        <div class="ticket-card priority-{prioridade}">
+            {pills_html}
+            <div class="ticket-title">{formatar_numero_ticket(ticket["id"])} - {titulo}</div>
+            {linhas_meta_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.button(
+        "Abrir",
+        key=f"abrir_{ticket['id']}",
+        on_click=abrir_ticket,
+        args=(ticket["id"],),
+        use_container_width=True,
+    )
 
 def abrir_ticket(ticket_id):
     st.session_state.ticket_aberto = ticket_id
@@ -899,6 +1026,20 @@ def render_notificacao_whatsapp():
         st.session_state.notificacao_whatsapp = None
         st.rerun()
 
+
+    if ticket.get("status") == "Resolvido":
+        st.markdown(
+            '<span class="ticket-pill age-green">Resolvido</span>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+            <span class="ticket-pill pill-{prioridade_classe(ticket['prioridade'])}">{ticket['prioridade']}</span>
+            <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
+            """,
+            unsafe_allow_html=True,
+        )
 
 def render_card(ticket):
     prioridade = prioridade_classe(ticket["prioridade"])
@@ -1629,6 +1770,93 @@ elif pagina == "Dashboard":
         unsafe_allow_html=True,
     )
 
+        def metricas_tempo_ticket(ticket):
+        criado = parse_dt_dashboard(ticket.get("criado_em", ""))
+        atualizado = parse_dt_dashboard(ticket.get("atualizado_em", ""))
+        agora_ref = agora()
+
+        comentarios_validos = [
+            c for c in ticket.get("comentarios", [])
+            if not c.get("excluido")
+        ]
+
+        primeira_resposta = None
+        for comentario in comentarios_validos:
+            autor = comentario.get("autor", "")
+            quando = parse_dt_dashboard(comentario.get("criado_em", ""))
+
+            if (
+                criado
+                and quando
+                and autor
+                and autor != ticket.get("solicitante", "")
+                and quando >= criado
+            ):
+                if primeira_resposta is None or quando < primeira_resposta:
+                    primeira_resposta = quando
+
+        eventos = eventos_status_ticket(ticket)
+        status_atual = ticket.get("status", "Aberto")
+
+        data_resolucao = None
+        for evento in eventos:
+            if evento["status"] == "Resolvido":
+                data_resolucao = evento["quando"]
+
+        if not data_resolucao and status_atual == "Resolvido":
+            data_resolucao = atualizado or agora_ref
+
+        fim_geral = data_resolucao if status_atual == "Resolvido" and data_resolucao else agora_ref
+
+        tempo_por_status_corrido = {status: 0.0 for status in STATUS}
+        tempo_por_status_util = {status: 0.0 for status in STATUS}
+
+        if eventos:
+            for indice, evento in enumerate(eventos):
+                inicio = evento["quando"]
+
+                if indice + 1 < len(eventos):
+                    fim = eventos[indice + 1]["quando"]
+                else:
+                    fim = fim_geral
+
+                duracao_corrida = horas_corridas_entre(inicio, fim)
+                duracao_util = horas_uteis_entre(inicio, fim)
+
+                if duracao_corrida is not None and evento["status"] in tempo_por_status_corrido:
+                    tempo_por_status_corrido[evento["status"]] += duracao_corrida
+
+                if duracao_util is not None and evento["status"] in tempo_por_status_util:
+                    tempo_por_status_util[evento["status"]] += duracao_util
+
+        tempo_resolucao_corrido = horas_corridas_entre(criado, data_resolucao) if data_resolucao else None
+        tempo_resolucao_util = horas_uteis_entre(criado, data_resolucao) if data_resolucao else None
+
+        tempo_primeiro_retorno_corrido = horas_corridas_entre(criado, primeira_resposta) if primeira_resposta else None
+        tempo_primeiro_retorno_util = horas_uteis_entre(criado, primeira_resposta) if primeira_resposta else None
+
+        tempo_total_corrido = horas_corridas_entre(criado, fim_geral) if criado else None
+        tempo_total_util = horas_uteis_entre(criado, fim_geral) if criado else None
+
+        return {
+            "tempo_resolucao_h": tempo_resolucao_corrido,
+            "tempo_resolucao_util_h": tempo_resolucao_util,
+            "tempo_primeiro_retorno_h": tempo_primeiro_retorno_corrido,
+            "tempo_primeiro_retorno_util_h": tempo_primeiro_retorno_util,
+            "tempo_total_h": tempo_total_corrido,
+            "tempo_total_util_h": tempo_total_util,
+            "tempo_aberto_h": tempo_por_status_corrido.get("Aberto", 0),
+            "tempo_aberto_util_h": tempo_por_status_util.get("Aberto", 0),
+            "tempo_em_analise_h": tempo_por_status_corrido.get("Em análise", 0),
+            "tempo_em_analise_util_h": tempo_por_status_util.get("Em análise", 0),
+            "tempo_aguardando_h": tempo_por_status_corrido.get("Aguardando retorno", 0),
+            "tempo_aguardando_util_h": tempo_por_status_util.get("Aguardando retorno", 0),
+            "tempo_em_execucao_h": tempo_por_status_corrido.get("Em execução", 0),
+            "tempo_em_execucao_util_h": tempo_por_status_util.get("Em execução", 0),
+            "tempo_resolvido_h": tempo_por_status_corrido.get("Resolvido", 0),
+            "tempo_resolvido_util_h": tempo_por_status_util.get("Resolvido", 0),
+        }
+    
     def parse_dt_dashboard(valor):
         return parse_data(valor) if valor else None
 
@@ -1775,14 +2003,22 @@ elif pagina == "Dashboard":
         tempo_total_ate_agora = horas_entre(criado, fim_geral) if criado else None
 
         return {
-            "tempo_resolucao_h": tempo_resolucao,
-            "tempo_primeiro_retorno_h": tempo_primeiro_retorno,
-            "tempo_total_h": tempo_total_ate_agora,
-            "tempo_aberto_h": tempo_por_status.get("Aberto", 0),
-            "tempo_em_analise_h": tempo_por_status.get("Em análise", 0),
-            "tempo_aguardando_h": tempo_por_status.get("Aguardando retorno", 0),
-            "tempo_em_execucao_h": tempo_por_status.get("Em execução", 0),
-            "tempo_resolvido_h": tempo_por_status.get("Resolvido", 0),
+                "Tempo resolução h": tempos["tempo_resolucao_h"],
+                "Tempo resolução útil h": tempos["tempo_resolucao_util_h"],
+                "Tempo primeiro retorno h": tempos["tempo_primeiro_retorno_h"],
+                "Tempo primeiro retorno útil h": tempos["tempo_primeiro_retorno_util_h"],
+                "Tempo total h": tempos["tempo_total_h"],
+                "Tempo total útil h": tempos["tempo_total_util_h"],
+                "Aberto h": tempos["tempo_aberto_h"],
+                "Aberto útil h": tempos["tempo_aberto_util_h"],
+                "Em análise h": tempos["tempo_em_analise_h"],
+                "Em análise útil h": tempos["tempo_em_analise_util_h"],
+                "Aguardando retorno h": tempos["tempo_aguardando_h"],
+                "Aguardando retorno útil h": tempos["tempo_aguardando_util_h"],
+                "Em execução h": tempos["tempo_em_execucao_h"],
+                "Em execução útil h": tempos["tempo_em_execucao_util_h"],
+                "Resolvido h": tempos["tempo_resolvido_h"],
+                "Resolvido útil h": tempos["tempo_resolvido_util_h"],
         }
 
     def render_tabela_clicavel(df_tabela, colunas):
