@@ -532,13 +532,13 @@ def mencoes_no_texto(texto):
     return encontrados
 
 
-def criar_notificacao(ticket, destinatario_login, tipo, mensagem):
+def criar_notificacao(ticket, destinatario_login, tipo, mensagem, permitir_proprio=False):
     if not destinatario_login:
         return
 
     usuario_atual = st.session_state.get("usuario")
 
-    if usuario_atual and destinatario_login == usuario_atual.get("login"):
+    if usuario_atual and destinatario_login == usuario_atual.get("login") and not permitir_proprio:
         return
 
     destinatario = usuario_por_email(destinatario_login)
@@ -563,8 +563,11 @@ def criar_notificacao(ticket, destinatario_login, tipo, mensagem):
     )
 
 
-def notificar_envolvidos(ticket, tipo, mensagem, logins_extras=None):
+def notificar_envolvidos(ticket, tipo, mensagem, logins_extras=None, permitir_proprio_para_extras=False):
     destinatarios = set()
+    extras = set(logins_extras or [])
+    usuario_atual = st.session_state.get("usuario")
+    login_atual = usuario_atual.get("login") if usuario_atual else ""
 
     solicitante_login = ticket.get("solicitante_login", "")
     responsavel_login = login_por_nome(ticket.get("responsavel", ""))
@@ -575,12 +578,17 @@ def notificar_envolvidos(ticket, tipo, mensagem, logins_extras=None):
     if responsavel_login:
         destinatarios.add(responsavel_login)
 
-    for login in logins_extras or []:
+    for login in extras:
         if login:
             destinatarios.add(login)
 
     for login in destinatarios:
-        criar_notificacao(ticket, login, tipo, mensagem)
+        permitir_proprio = permitir_proprio_para_extras and login in extras
+
+        if login == login_atual and not permitir_proprio:
+            continue
+
+        criar_notificacao(ticket, login, tipo, mensagem, permitir_proprio=permitir_proprio)
 
 
 def notificacoes_do_usuario(tickets_base, login):
@@ -1510,15 +1518,8 @@ def painel_ticket():
             key=f"anexos_comentario_{ticket['id']}_{st.session_state.uploader_key}",
         )
 
-        usuarios_mencao = st.multiselect(
-            "Mencionar pessoas",
-            options=list(USUARIOS.keys()),
-            format_func=lambda email: USUARIOS[email]["nome"],
-            key=f"mencoes_comentario_{ticket['id']}",
-        )
-
         novo_comentario = st.chat_input(
-            "Digite um comentário e pressione Enter",
+            "Digite um comentário. Use @Nome Sobrenome para mencionar alguém.",
             key=f"chat_comentario_{ticket['id']}",
         )
 
@@ -1550,6 +1551,7 @@ def painel_ticket():
                 "Novo comentário",
                 f"{st.session_state.usuario['nome']} comentou no ticket {formatar_numero_ticket(ticket['id'])}.",
                 logins_extras=mencoes,
+                permitir_proprio_para_extras=True,
             )
 
             atualizar_ticket_nuvem(ticket)
@@ -1642,12 +1644,6 @@ pagina = st.session_state.pagina_atual
 if pagina.startswith("Notificações"):
     pagina = "Notificações"
 
-
-pagina = st.session_state.pagina_atual
-
-if pagina.startswith("Notificações"):
-    pagina = "Notificações"
-
 st.title("Central de Tickets")
 st.caption("Gestão interna de solicitações entre áreas")
 
@@ -1713,36 +1709,6 @@ if pagina == "Novo ticket":
             st.session_state.proxima_pagina = "Kanban"
             st.session_state.uploader_key += 1
             st.rerun()
-
-elif pagina == "Notificações":
-    st.subheader("Notificações")
-
-    notificacoes_usuario = notificacoes_do_usuario(
-        st.session_state.tickets,
-        usuario["login"],
-    )
-
-    nao_lidas = [n for n in notificacoes_usuario if not n.get("lida")]
-    lidas = [n for n in notificacoes_usuario if n.get("lida")]
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Não lidas", len(nao_lidas))
-    c2.metric("Total", len(notificacoes_usuario))
-    c3.metric("Lidas", len(lidas))
-
-    st.divider()
-
-    if not notificacoes_usuario:
-        st.info("Você ainda não tem notificações.")
-    else:
-        filtro_notificacao = st.radio(
-            "Visualizar",
-            ["Não lidas", "Todas"],
-            horizontal=True,
-            key="filtro_notificacoes",
-        )
-
-        lista_notificacoes = nao_lidas if filtro_notificacao == "Não lidas" else notificacoes_usuario
 
 elif pagina == "Notificações":
     st.subheader("Notificações")
