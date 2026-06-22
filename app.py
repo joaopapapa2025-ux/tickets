@@ -969,7 +969,7 @@ def render_card(ticket):
     if origem_id:
         linhas_meta.append(f"Originado do {formatar_numero_ticket(origem_id)}")
 
-    linhas_meta_html = "\n".join(
+    linhas_meta_html = "".join(
         f'<div class="ticket-meta">{linha}</div>'
         for linha in linhas_meta
         if linha
@@ -978,21 +978,20 @@ def render_card(ticket):
     if ticket.get("status") == "Resolvido":
         pills_html = '<span class="ticket-pill age-green">Resolvido</span>'
     else:
-        pills_html = f"""
-            <span class="ticket-pill pill-{prioridade}">{ticket["prioridade"]}</span>
-            <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
-        """
+        pills_html = (
+            f'<span class="ticket-pill pill-{prioridade}">{html.escape(ticket["prioridade"])}</span>'
+            f'<span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>'
+        )
 
-    st.markdown(
-        f"""
-        <div class="ticket-card priority-{prioridade}">
-            {pills_html}
-            <div class="ticket-title">{formatar_numero_ticket(ticket["id"])} - {titulo}</div>
-            {linhas_meta_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    card_html = (
+        f'<div class="ticket-card priority-{prioridade}">'
+        f'{pills_html}'
+        f'<div class="ticket-title">{formatar_numero_ticket(ticket["id"])} - {titulo}</div>'
+        f'{linhas_meta_html}'
+        f'</div>'
     )
+
+    st.markdown(card_html, unsafe_allow_html=True)
 
     st.button(
         "Abrir",
