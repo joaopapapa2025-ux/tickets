@@ -976,18 +976,12 @@ def render_card(ticket):
     )
 
     if ticket.get("status") == "Resolvido":
-        st.markdown(
-            '<span class="ticket-pill age-green">Resolvido</span>',
-            unsafe_allow_html=True,
-        )
+        pills_html = '<span class="ticket-pill age-green">Resolvido</span>'
     else:
-        st.markdown(
-            f"""
-            <span class="ticket-pill pill-{prioridade_classe(ticket['prioridade'])}">{ticket['prioridade']}</span>
+        pills_html = f"""
+            <span class="ticket-pill pill-{prioridade}">{ticket["prioridade"]}</span>
             <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
-            """,
-            unsafe_allow_html=True,
-        )
+        """
 
     st.markdown(
         f"""
@@ -1041,22 +1035,6 @@ def render_notificacao_whatsapp():
         st.session_state.notificacao_whatsapp = None
         st.rerun()
 
-
-    if ticket.get("status") == "Resolvido":
-        st.markdown(
-            '<span class="ticket-pill age-green">Resolvido</span>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f"""
-            <span class="ticket-pill pill-{prioridade_classe(ticket['prioridade'])}">{ticket['prioridade']}</span>
-            <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
 def painel_ticket():
     ticket = next((t for t in st.session_state.tickets if t["id"] == st.session_state.ticket_aberto), None)
 
@@ -1071,13 +1049,20 @@ def painel_ticket():
 
     with topo1:
         st.subheader(f"{formatar_numero_ticket(ticket['id'])} - {ticket['titulo']}")
-        st.markdown(
-            f"""
-            <span class="ticket-pill pill-{prioridade_classe(ticket['prioridade'])}">{ticket['prioridade']}</span>
-            <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
-            """,
-            unsafe_allow_html=True,
-        )
+        
+        if ticket.get("status") == "Resolvido":
+            st.markdown(
+                '<span class="ticket-pill age-green">Resolvido</span>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+                <span class="ticket-pill pill-{prioridade_classe(ticket['prioridade'])}">{ticket['prioridade']}</span>
+                <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
+                """,
+                unsafe_allow_html=True,
+            )
         st.caption(f"{ticket['setor_origem']} para {ticket['setor_destino']} | Criado em {ticket.get('criado_em', '')}")
 
     with topo2:
@@ -1724,93 +1709,6 @@ elif pagina == "Dashboard":
         """,
         unsafe_allow_html=True,
     )
-
-        def metricas_tempo_ticket(ticket):
-        criado = parse_dt_dashboard(ticket.get("criado_em", ""))
-        atualizado = parse_dt_dashboard(ticket.get("atualizado_em", ""))
-        agora_ref = agora()
-
-        comentarios_validos = [
-            c for c in ticket.get("comentarios", [])
-            if not c.get("excluido")
-        ]
-
-        primeira_resposta = None
-        for comentario in comentarios_validos:
-            autor = comentario.get("autor", "")
-            quando = parse_dt_dashboard(comentario.get("criado_em", ""))
-
-            if (
-                criado
-                and quando
-                and autor
-                and autor != ticket.get("solicitante", "")
-                and quando >= criado
-            ):
-                if primeira_resposta is None or quando < primeira_resposta:
-                    primeira_resposta = quando
-
-        eventos = eventos_status_ticket(ticket)
-        status_atual = ticket.get("status", "Aberto")
-
-        data_resolucao = None
-        for evento in eventos:
-            if evento["status"] == "Resolvido":
-                data_resolucao = evento["quando"]
-
-        if not data_resolucao and status_atual == "Resolvido":
-            data_resolucao = atualizado or agora_ref
-
-        fim_geral = data_resolucao if status_atual == "Resolvido" and data_resolucao else agora_ref
-
-        tempo_por_status_corrido = {status: 0.0 for status in STATUS}
-        tempo_por_status_util = {status: 0.0 for status in STATUS}
-
-        if eventos:
-            for indice, evento in enumerate(eventos):
-                inicio = evento["quando"]
-
-                if indice + 1 < len(eventos):
-                    fim = eventos[indice + 1]["quando"]
-                else:
-                    fim = fim_geral
-
-                duracao_corrida = horas_corridas_entre(inicio, fim)
-                duracao_util = horas_uteis_entre(inicio, fim)
-
-                if duracao_corrida is not None and evento["status"] in tempo_por_status_corrido:
-                    tempo_por_status_corrido[evento["status"]] += duracao_corrida
-
-                if duracao_util is not None and evento["status"] in tempo_por_status_util:
-                    tempo_por_status_util[evento["status"]] += duracao_util
-
-        tempo_resolucao_corrido = horas_corridas_entre(criado, data_resolucao) if data_resolucao else None
-        tempo_resolucao_util = horas_uteis_entre(criado, data_resolucao) if data_resolucao else None
-
-        tempo_primeiro_retorno_corrido = horas_corridas_entre(criado, primeira_resposta) if primeira_resposta else None
-        tempo_primeiro_retorno_util = horas_uteis_entre(criado, primeira_resposta) if primeira_resposta else None
-
-        tempo_total_corrido = horas_corridas_entre(criado, fim_geral) if criado else None
-        tempo_total_util = horas_uteis_entre(criado, fim_geral) if criado else None
-
-        return {
-            "tempo_resolucao_h": tempo_resolucao_corrido,
-            "tempo_resolucao_util_h": tempo_resolucao_util,
-            "tempo_primeiro_retorno_h": tempo_primeiro_retorno_corrido,
-            "tempo_primeiro_retorno_util_h": tempo_primeiro_retorno_util,
-            "tempo_total_h": tempo_total_corrido,
-            "tempo_total_util_h": tempo_total_util,
-            "tempo_aberto_h": tempo_por_status_corrido.get("Aberto", 0),
-            "tempo_aberto_util_h": tempo_por_status_util.get("Aberto", 0),
-            "tempo_em_analise_h": tempo_por_status_corrido.get("Em análise", 0),
-            "tempo_em_analise_util_h": tempo_por_status_util.get("Em análise", 0),
-            "tempo_aguardando_h": tempo_por_status_corrido.get("Aguardando retorno", 0),
-            "tempo_aguardando_util_h": tempo_por_status_util.get("Aguardando retorno", 0),
-            "tempo_em_execucao_h": tempo_por_status_corrido.get("Em execução", 0),
-            "tempo_em_execucao_util_h": tempo_por_status_util.get("Em execução", 0),
-            "tempo_resolvido_h": tempo_por_status_corrido.get("Resolvido", 0),
-            "tempo_resolvido_util_h": tempo_por_status_util.get("Resolvido", 0),
-        }
     
     def parse_dt_dashboard(valor):
         return parse_data(valor) if valor else None
@@ -1937,7 +1835,8 @@ elif pagina == "Dashboard":
 
         fim_geral = data_resolucao if status_atual == "Resolvido" and data_resolucao else agora_ref
 
-        tempo_por_status = {status: 0.0 for status in STATUS}
+        tempo_por_status_corrido = {status: 0.0 for status in STATUS}
+        tempo_por_status_util = {status: 0.0 for status in STATUS}
 
         if eventos:
             for indice, evento in enumerate(eventos):
@@ -1948,32 +1847,32 @@ elif pagina == "Dashboard":
                 else:
                     fim = fim_geral
 
-                duracao = horas_entre(inicio, fim)
+                duracao_corrida = horas_corridas_entre(inicio, fim)
+                duracao_util = horas_uteis_entre(inicio, fim)
 
-                if duracao is not None and evento["status"] in tempo_por_status:
-                    tempo_por_status[evento["status"]] += duracao
+                if duracao_corrida is not None and evento["status"] in tempo_por_status_corrido:
+                    tempo_por_status_corrido[evento["status"]] += duracao_corrida
 
-        tempo_resolucao = horas_entre(criado, data_resolucao) if data_resolucao else None
-        tempo_primeiro_retorno = horas_entre(criado, primeira_resposta) if primeira_resposta else None
-        tempo_total_ate_agora = horas_entre(criado, fim_geral) if criado else None
+                if duracao_util is not None and evento["status"] in tempo_por_status_util:
+                    tempo_por_status_util[evento["status"]] += duracao_util
 
         return {
-                "Tempo resolução h": tempos["tempo_resolucao_h"],
-                "Tempo resolução útil h": tempos["tempo_resolucao_util_h"],
-                "Tempo primeiro retorno h": tempos["tempo_primeiro_retorno_h"],
-                "Tempo primeiro retorno útil h": tempos["tempo_primeiro_retorno_util_h"],
-                "Tempo total h": tempos["tempo_total_h"],
-                "Tempo total útil h": tempos["tempo_total_util_h"],
-                "Aberto h": tempos["tempo_aberto_h"],
-                "Aberto útil h": tempos["tempo_aberto_util_h"],
-                "Em análise h": tempos["tempo_em_analise_h"],
-                "Em análise útil h": tempos["tempo_em_analise_util_h"],
-                "Aguardando retorno h": tempos["tempo_aguardando_h"],
-                "Aguardando retorno útil h": tempos["tempo_aguardando_util_h"],
-                "Em execução h": tempos["tempo_em_execucao_h"],
-                "Em execução útil h": tempos["tempo_em_execucao_util_h"],
-                "Resolvido h": tempos["tempo_resolvido_h"],
-                "Resolvido útil h": tempos["tempo_resolvido_util_h"],
+            "tempo_resolucao_h": horas_corridas_entre(criado, data_resolucao) if data_resolucao else None,
+            "tempo_resolucao_util_h": horas_uteis_entre(criado, data_resolucao) if data_resolucao else None,
+            "tempo_primeiro_retorno_h": horas_corridas_entre(criado, primeira_resposta) if primeira_resposta else None,
+            "tempo_primeiro_retorno_util_h": horas_uteis_entre(criado, primeira_resposta) if primeira_resposta else None,
+            "tempo_total_h": horas_corridas_entre(criado, fim_geral) if criado else None,
+            "tempo_total_util_h": horas_uteis_entre(criado, fim_geral) if criado else None,
+            "tempo_aberto_h": tempo_por_status_corrido.get("Aberto", 0),
+            "tempo_aberto_util_h": tempo_por_status_util.get("Aberto", 0),
+            "tempo_em_analise_h": tempo_por_status_corrido.get("Em análise", 0),
+            "tempo_em_analise_util_h": tempo_por_status_util.get("Em análise", 0),
+            "tempo_aguardando_h": tempo_por_status_corrido.get("Aguardando retorno", 0),
+            "tempo_aguardando_util_h": tempo_por_status_util.get("Aguardando retorno", 0),
+            "tempo_em_execucao_h": tempo_por_status_corrido.get("Em execução", 0),
+            "tempo_em_execucao_util_h": tempo_por_status_util.get("Em execução", 0),
+            "tempo_resolvido_h": tempo_por_status_corrido.get("Resolvido", 0),
+            "tempo_resolvido_util_h": tempo_por_status_util.get("Resolvido", 0),
         }
 
     def render_tabela_clicavel(df_tabela, colunas):
@@ -2139,13 +2038,21 @@ elif pagina == "Dashboard":
                     "data_criacao": criado.date() if criado else None,
                     "data_resolucao": atualizado.date() if atualizado and ticket.get("status") == "Resolvido" else None,
                     "Tempo resolução h": tempos["tempo_resolucao_h"],
+                    "Tempo resolução útil h": tempos["tempo_resolucao_util_h"],
                     "Tempo primeiro retorno h": tempos["tempo_primeiro_retorno_h"],
+                    "Tempo primeiro retorno útil h": tempos["tempo_primeiro_retorno_util_h"],
                     "Tempo total h": tempos["tempo_total_h"],
+                    "Tempo total útil h": tempos["tempo_total_util_h"],
                     "Aberto h": tempos["tempo_aberto_h"],
+                    "Aberto útil h": tempos["tempo_aberto_util_h"],
                     "Em análise h": tempos["tempo_em_analise_h"],
+                    "Em análise útil h": tempos["tempo_em_analise_util_h"],
                     "Aguardando retorno h": tempos["tempo_aguardando_h"],
+                    "Aguardando retorno útil h": tempos["tempo_aguardando_util_h"],
                     "Em execução h": tempos["tempo_em_execucao_h"],
+                    "Em execução útil h": tempos["tempo_em_execucao_util_h"],
                     "Resolvido h": tempos["tempo_resolvido_h"],
+                    "Resolvido útil h": tempos["tempo_resolvido_util_h"],
                 }
             )
 
@@ -2169,7 +2076,10 @@ elif pagina == "Dashboard":
         tempo_medio_resolucao = media_segura(resolvidos_df["Tempo resolução h"]) if not resolvidos_df.empty else None
         tempo_medio_primeiro_retorno = media_segura(df["Tempo primeiro retorno h"])
         tempo_medio_total_aberto = media_segura(abertos_df["Tempo total h"]) if not abertos_df.empty else None
-
+        tempo_medio_resolucao_util = media_segura(resolvidos_df["Tempo resolução útil h"]) if not resolvidos_df.empty else None
+        tempo_medio_primeiro_retorno_util = media_segura(df["Tempo primeiro retorno útil h"])
+        tempo_medio_total_aberto_util = media_segura(abertos_df["Tempo total útil h"]) if not abertos_df.empty else None
+        
         st.markdown("#### Resumo executivo")
 
         m1, m2, m3, m4, m5 = st.columns(5)
@@ -2199,7 +2109,7 @@ elif pagina == "Dashboard":
                 f"""
                 <div class="insight-card">
                     <div class="insight-label">Tempo médio de resolução</div>
-                    <div class="insight-value">{formatar_horas(tempo_medio_resolucao)}</div>
+                    <div class="insight-value">{formatar_tempo_duplo(tempo_medio_resolucao, tempo_medio_resolucao_util)}</div>
                     <div class="insight-note">Entre abertura e status resolvido.</div>
                 </div>
                 """,
@@ -2211,7 +2121,7 @@ elif pagina == "Dashboard":
                 f"""
                 <div class="insight-card">
                     <div class="insight-label">Tempo médio de retorno</div>
-                    <div class="insight-value">{formatar_horas(tempo_medio_primeiro_retorno)}</div>
+                    <div class="insight-value">{formatar_tempo_duplo(tempo_medio_primeiro_retorno, tempo_medio_primeiro_retorno_util)}</div>
                     <div class="insight-note">Da abertura até o primeiro comentário de outra pessoa.</div>
                 </div>
                 """,
@@ -2223,7 +2133,7 @@ elif pagina == "Dashboard":
                 f"""
                 <div class="insight-card">
                     <div class="insight-label">Tempo médio em aberto</div>
-                    <div class="insight-value">{formatar_horas(tempo_medio_total_aberto)}</div>
+                    <div class="insight-value">{formatar_tempo_duplo(tempo_medio_total_aberto, tempo_medio_total_aberto_util)}</div>
                     <div class="insight-note">Tickets ainda não resolvidos.</div>
                 </div>
                 """,
@@ -2267,10 +2177,26 @@ elif pagina == "Dashboard":
 
         etapas_tempo = pd.DataFrame(
             [
-                {"Etapa": "Aberto", "Horas médias": media_segura(df["Aberto h"]) or 0},
-                {"Etapa": "Em análise", "Horas médias": media_segura(df["Em análise h"]) or 0},
-                {"Etapa": "Aguardando retorno", "Horas médias": media_segura(df["Aguardando retorno h"]) or 0},
-                {"Etapa": "Em execução", "Horas médias": media_segura(df["Em execução h"]) or 0},
+                {
+                    "Etapa": "Aberto",
+                    "Horas corridas médias": media_segura(df["Aberto h"]) or 0,
+                    "Horas úteis médias": media_segura(df["Aberto útil h"]) or 0,
+                },
+                {
+                    "Etapa": "Em análise",
+                    "Horas corridas médias": media_segura(df["Em análise h"]) or 0,
+                    "Horas úteis médias": media_segura(df["Em análise útil h"]) or 0,
+                },
+                {
+                    "Etapa": "Aguardando retorno",
+                    "Horas corridas médias": media_segura(df["Aguardando retorno h"]) or 0,
+                    "Horas úteis médias": media_segura(df["Aguardando retorno útil h"]) or 0,
+                },
+                {
+                    "Etapa": "Em execução",
+                    "Horas corridas médias": media_segura(df["Em execução h"]) or 0,
+                    "Horas úteis médias": media_segura(df["Em execução útil h"]) or 0,
+                },
             ]
         )
 
@@ -2278,14 +2204,21 @@ elif pagina == "Dashboard":
 
         with col_funil1:
             st.bar_chart(
-                etapas_tempo.set_index("Etapa"),
+                etapas_tempo.set_index("Etapa")[["Horas corridas médias", "Horas úteis médias"]],
                 use_container_width=True,
             )
 
         with col_funil2:
             tabela_etapas = etapas_tempo.copy()
-            tabela_etapas["Tempo médio"] = tabela_etapas["Horas médias"].apply(formatar_horas)
-            tabela_etapas = tabela_etapas[["Etapa", "Tempo médio"]]
+            tabela_etapas["Tempo corrido médio"] = tabela_etapas["Horas corridas médias"].apply(formatar_horas)
+            tabela_etapas["Tempo útil médio"] = tabela_etapas["Horas úteis médias"].apply(formatar_horas)
+            tabela_etapas = tabela_etapas[["Etapa", "Tempo corrido médio", "Tempo útil médio"]]
+
+            st.dataframe(
+                tabela_etapas,
+                use_container_width=True,
+                hide_index=True,
+            )
 
             st.dataframe(
                 tabela_etapas,
@@ -2498,8 +2431,58 @@ elif pagina == "Dashboard":
 
         base_exportacao = df.copy()
         base_exportacao["Tempo resolução"] = base_exportacao["Tempo resolução h"].apply(formatar_horas)
+        base_exportacao["Tempo resolução útil"] = base_exportacao["Tempo resolução útil h"].apply(formatar_horas)
         base_exportacao["Tempo primeiro retorno"] = base_exportacao["Tempo primeiro retorno h"].apply(formatar_horas)
+        base_exportacao["Tempo primeiro retorno útil"] = base_exportacao["Tempo primeiro retorno útil h"].apply(formatar_horas)
         base_exportacao["Tempo total"] = base_exportacao["Tempo total h"].apply(formatar_horas)
+        base_exportacao["Tempo total útil"] = base_exportacao["Tempo total útil h"].apply(formatar_horas)
+
+        buffer_excel = BytesIO()
+
+        colunas_excel = [
+            "ticket_numero",
+            "Título",
+            "NF/Pedido",
+            "CNPJ",
+            "Status",
+            "Prioridade",
+            "Setor origem",
+            "Setor destino",
+            "Solicitante",
+            "Responsável",
+            "Dias aberto",
+            "Comentários",
+            "Tem anexo",
+            "Criado em",
+            "Atualizado em",
+            "Tempo primeiro retorno",
+            "Tempo primeiro retorno útil",
+            "Tempo resolução",
+            "Tempo resolução útil",
+            "Tempo total",
+            "Tempo total útil",
+        ]
+
+        with pd.ExcelWriter(buffer_excel, engine="openpyxl") as writer:
+            base_exportacao[colunas_excel].to_excel(
+                writer,
+                index=False,
+                sheet_name="Base de tickets",
+            )
+
+            etapas_tempo.to_excel(
+                writer,
+                index=False,
+                sheet_name="Tempo por etapa",
+            )
+
+        st.download_button(
+            "Baixar Excel",
+            data=buffer_excel.getvalue(),
+            file_name=f"relatorio_tickets_{agora().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
 
         render_tabela_clicavel(
             base_exportacao.sort_values("id", ascending=False).head(100),
@@ -2514,6 +2497,8 @@ elif pagina == "Dashboard":
                 "Responsável",
                 "Dias aberto",
                 "Tempo primeiro retorno",
+                "Tempo primeiro retorno útil",
                 "Tempo resolução",
+                "Tempo resolução útil",
             ],
         )
