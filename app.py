@@ -363,7 +363,16 @@ def horas_corridas_entre(inicio, fim):
 
 
 def formatar_tempo_duplo(horas_corridas, horas_uteis):
-    return f"{formatar_horas(horas_corridas)} corridos | {formatar_horas(horas_uteis)} úteis"
+    def _fmt(valor):
+        if valor is None or pd.isna(valor):
+            return "Sem dado"
+        if valor < 1:
+            return f"{valor * 60:.0f} min"
+        if valor < 24:
+            return f"{valor:.1f} h"
+        return f"{valor / 24:.1f} dias"
+
+    return f"{_fmt(horas_corridas)} corridos | {_fmt(horas_uteis)} úteis"
 
 
 def usuarios_do_setor(setor):
@@ -967,12 +976,18 @@ def render_card(ticket):
     )
 
     if ticket.get("status") == "Resolvido":
-        pills_html = '<span class="ticket-pill age-green">Resolvido</span>'
+        st.markdown(
+            '<span class="ticket-pill age-green">Resolvido</span>',
+            unsafe_allow_html=True,
+        )
     else:
-        pills_html = f"""
-            <span class="ticket-pill pill-{prioridade}">{ticket["prioridade"]}</span>
+        st.markdown(
+            f"""
+            <span class="ticket-pill pill-{prioridade_classe(ticket['prioridade'])}">{ticket['prioridade']}</span>
             <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
-        """
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.markdown(
         f"""
@@ -1040,66 +1055,6 @@ def render_notificacao_whatsapp():
             """,
             unsafe_allow_html=True,
         )
-
-def render_card(ticket):
-    prioridade = prioridade_classe(ticket["prioridade"])
-    dias = idade_ticket(ticket)
-    classe_idade = classe_idade_ticket(dias)
-
-    titulo = html.escape(ticket["titulo"])
-    origem = html.escape(ticket["setor_origem"])
-    destino = html.escape(ticket["setor_destino"])
-    responsavel = html.escape(ticket["responsavel"])
-    solicitante = html.escape(ticket["solicitante"])
-    criado_em = html.escape(ticket.get("criado_em", ""))
-    nf_pedido = html.escape(ticket.get("nf_pedido", ""))
-    cnpj = html.escape(ticket.get("cnpj", ""))
-    origem_id = limpar_id_origem(ticket.get("ticket_origem_id"))
-
-    linhas_meta = [
-        f"{origem} para {destino}",
-        f"Responsável: {responsavel}",
-        f"Solicitante: {solicitante}",
-        f"Criado em: {criado_em}",
-    ]
-
-    if nf_pedido:
-        linhas_meta.append(f"NF/Pedido: {nf_pedido}")
-
-    if cnpj:
-        linhas_meta.append(f"CNPJ: {cnpj}")
-
-    if ticket.get("anexos"):
-        linhas_meta.append(f"Anexos: {len(ticket.get('anexos', []))}")
-
-    if origem_id:
-        linhas_meta.append(f"Originado do {formatar_numero_ticket(origem_id)}")
-
-    linhas_meta_html = "\n".join(
-        f'<div class="ticket-meta">{linha}</div>'
-        for linha in linhas_meta
-        if linha
-    )
-
-    st.markdown(
-        f"""
-        <div class="ticket-card priority-{prioridade}">
-            <span class="ticket-pill pill-{prioridade}">{ticket["prioridade"]}</span>
-            <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
-            <div class="ticket-title">{formatar_numero_ticket(ticket["id"])} - {titulo}</div>
-            {linhas_meta_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.button(
-        "Abrir",
-        key=f"abrir_{ticket['id']}",
-        on_click=abrir_ticket,
-        args=(ticket["id"],),
-        use_container_width=True,
-    )
 
 
 def painel_ticket():
