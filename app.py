@@ -1517,54 +1517,37 @@ def painel_ticket():
             key=f"anexos_comentario_{ticket['id']}_{st.session_state.uploader_key}",
         )
 
+        usuarios_mencao = st.multiselect(
+            "Mencionar pessoas",
+            options=list(USUARIOS.keys()),
+            format_func=lambda email: USUARIOS[email]["nome"],
+            key=f"mencoes_comentario_{ticket['id']}",
+            placeholder="Escolha uma ou mais pessoas para mencionar",
+        )
+
+        mencoes_texto = " ".join(
+            f"@{USUARIOS[email]['nome']}"
+            for email in usuarios_mencao
+        )
+
         comentario_key = f"novo_comentario_texto_{ticket['id']}"
 
-        if comentario_key not in st.session_state:
-            st.session_state[comentario_key] = ""
-
-        busca_mencao = st.text_input(
-            "Adicionar menção",
-            placeholder="Digite parte do nome, exemplo: rod",
-            key=f"busca_mencao_{ticket['id']}",
-        )
-
-        if busca_mencao.strip():
-            termo_mencao = busca_mencao.strip().lower()
-            sugestoes = []
-
-            for email, dados in USUARIOS.items():
-                nome = dados["nome"]
-                usuario_sistema = dados.get("usuario", "")
-                texto_busca = f"{nome} {usuario_sistema} {email}".lower()
-
-                if termo_mencao in texto_busca:
-                    sugestoes.append((email, nome))
-
-            if sugestoes:
-                st.caption("Clique para inserir no comentário")
-
-                colunas_sugestoes = st.columns(min(len(sugestoes), 4))
-
-                for indice, (email, nome) in enumerate(sugestoes[:4]):
-                    with colunas_sugestoes[indice % len(colunas_sugestoes)]:
-                        if st.button(f"@{nome}", key=f"sugerir_mencao_{ticket['id']}_{email}", use_container_width=True):
-                            texto_base = st.session_state.get(comentario_key, "").rstrip()
-
-                            if texto_base:
-                                st.session_state[comentario_key] = f"{texto_base} @{nome} "
-                            else:
-                                st.session_state[comentario_key] = f"@{nome} "
-
-                            st.rerun()
-            else:
-                st.caption("Nenhuma pessoa encontrada.")
-
-        texto_atual = st.text_area(
+        texto_digitado = st.text_area(
             "Comentário",
             key=comentario_key,
-            placeholder="Digite o comentário aqui. Para mencionar alguém, use o campo acima.",
+            placeholder="Digite o comentário aqui.",
             height=110,
         )
+
+        if mencoes_texto:
+            texto_preview = f"{mencoes_texto} {texto_digitado}".strip()
+            st.caption("Prévia do comentário:")
+            st.info(texto_preview)
+        else:
+            texto_preview = texto_digitado.strip()
+
+        col_envio1, col_envio2 = st.columns([1, 4])
+
         with col_envio1:
             enviar_comentario = st.button(
                 "Enviar",
@@ -1573,13 +1556,14 @@ def painel_ticket():
                 use_container_width=True,
             )
 
-        novo_comentario = st.session_state.get(comentario_key, "").strip()
+        novo_comentario = texto_preview.strip()
 
         if enviar_comentario and novo_comentario:
             anexos_comentario = salvar_uploads(arquivos_comentario)
 
             texto_comentario = novo_comentario
-            mencoes = mencoes_no_texto(texto_comentario)
+            mencoes = set(usuarios_mencao)
+            mencoes.update(mencoes_no_texto(texto_comentario))
 
             ticket["comentarios"].append(
                 {
@@ -1609,12 +1593,12 @@ def painel_ticket():
             atualizar_ticket_nuvem(ticket)
             preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
             sincronizar_ticket_local(ticket)
-            st.session_state[comentario_key] = ""
             st.session_state.uploader_key += 1
             st.rerun()
 
         if arquivos_comentario and not novo_comentario:
             st.caption("Digite uma mensagem e clique em Enviar para enviar junto com os anexos.")
+
         st.markdown("#### Histórico")
         historico = ticket.get("historico", [])
 
