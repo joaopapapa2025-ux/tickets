@@ -1517,11 +1517,12 @@ def painel_ticket():
             key=f"anexos_comentario_{ticket['id']}_{st.session_state.uploader_key}",
         )
 
+        comentario_reset = st.session_state.get(f"comentario_key_reset_{ticket['id']}", 1)
         usuarios_mencao = st.multiselect(
             "Mencionar pessoas",
             options=list(USUARIOS.keys()),
             format_func=lambda email: USUARIOS[email]["nome"],
-            key=f"mencoes_comentario_{ticket['id']}",
+            key=f"mencoes_comentario_{ticket['id']}_{comentario_reset}",
             placeholder="Escolha uma ou mais pessoas para mencionar",
         )
 
@@ -1529,8 +1530,8 @@ def painel_ticket():
             f"@{USUARIOS[email]['nome']}"
             for email in usuarios_mencao
         )
-
-        comentario_key = f"novo_comentario_texto_{ticket['id']}"
+        
+        comentario_key = f"novo_comentario_texto_{ticket['id']}_{comentario_reset}"
 
         texto_digitado = st.text_area(
             "Comentário",
@@ -1594,6 +1595,7 @@ def painel_ticket():
             preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
             sincronizar_ticket_local(ticket)
             st.session_state.uploader_key += 1
+            st.session_state[f"comentario_key_reset_{ticket['id']}"] = st.session_state.get(f"comentario_key_reset_{ticket['id']}", 1) + 1
             st.rerun()
 
         if arquivos_comentario and not novo_comentario:
