@@ -1044,19 +1044,6 @@ def painel_ticket():
     with topo1:
         st.subheader(f"{formatar_numero_ticket(ticket['id'])} - {ticket['titulo']}")
         
-        if ticket.get("status") == "Resolvido":
-            st.markdown(
-                '<span class="ticket-pill age-green">Resolvido</span>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"""
-                <span class="ticket-pill pill-{prioridade_classe(ticket['prioridade'])}">{ticket['prioridade']}</span>
-                <span class="ticket-pill {classe_idade}">{texto_idade_ticket(dias)}</span>
-                """,
-                unsafe_allow_html=True,
-            )
         st.caption(f"{ticket['setor_origem']} para {ticket['setor_destino']} | Criado em {ticket.get('criado_em', '')}")
 
     with topo2:
