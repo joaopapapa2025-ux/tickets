@@ -1522,16 +1522,9 @@ def painel_ticket():
         if comentario_key not in st.session_state:
             st.session_state[comentario_key] = ""
 
-        texto_atual = st.text_area(
-            "Comentário",
-            key=comentario_key,
-            placeholder="Digite o comentário aqui. Para mencionar alguém, use o campo acima.",
-            height=110,
-        )
-
         busca_mencao = st.text_input(
             "Adicionar menção",
-            placeholder="Digite parte do nome, exemplo: joã",
+            placeholder="Digite parte do nome, exemplo: rod",
             key=f"busca_mencao_{ticket['id']}",
         )
 
@@ -1562,13 +1555,16 @@ def painel_ticket():
                             else:
                                 st.session_state[comentario_key] = f"@{nome} "
 
-                            st.session_state[f"busca_mencao_{ticket['id']}"] = ""
                             st.rerun()
             else:
                 st.caption("Nenhuma pessoa encontrada.")
 
-        col_envio1, col_envio2 = st.columns([1, 4])
-
+        texto_atual = st.text_area(
+            "Comentário",
+            key=comentario_key,
+            placeholder="Digite o comentário aqui. Para mencionar alguém, use o campo acima.",
+            height=110,
+        )
         with col_envio1:
             enviar_comentario = st.button(
                 "Enviar",
