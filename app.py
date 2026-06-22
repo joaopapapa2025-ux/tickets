@@ -562,7 +562,6 @@ def criar_notificacao(ticket, destinatario_login, tipo, mensagem, permitir_propr
         }
     )
 
-
 def notificar_envolvidos(ticket, tipo, mensagem, logins_extras=None, permitir_proprio_para_extras=False):
     destinatarios = set()
     extras = set(logins_extras or [])
@@ -1518,15 +1517,77 @@ def painel_ticket():
             key=f"anexos_comentario_{ticket['id']}_{st.session_state.uploader_key}",
         )
 
-        novo_comentario = st.chat_input(
-            "Digite um comentário. Use @Nome Sobrenome para mencionar alguém.",
-            key=f"chat_comentario_{ticket['id']}",
+        comentario_key = f"novo_comentario_texto_{ticket['id']}"
+
+        if comentario_key not in st.session_state:
+            st.session_state[comentario_key] = ""
+
+        texto_atual = st.text_area(
+            "Comentário",
+            key=comentario_key,
+            placeholder="Digite um comentário. Use @Nome para mencionar alguém, exemplo: @Rodrigo Sarlo",
+            height=110,
         )
 
-        if novo_comentario:
+        def encontrar_mencao_em_digitacao(texto):
+            posicao = texto.rfind("@")
+
+            if posicao == -1:
+                return None, ""
+
+            depois_arroba = texto[posicao + 1:]
+
+            if "\n" in depois_arroba:
+                return None, ""
+
+            if len(depois_arroba) > 40:
+                return None, ""
+
+            return posicao, depois_arroba.strip().lower()
+
+        posicao_mencao, termo_mencao = encontrar_mencao_em_digitacao(texto_atual)
+
+        if posicao_mencao is not None and termo_mencao:
+            sugestoes = []
+
+            for email, dados in USUARIOS.items():
+                nome = dados["nome"]
+                usuario_sistema = dados.get("usuario", "")
+
+                texto_busca = f"{nome} {usuario_sistema} {email}".lower()
+
+                if termo_mencao in texto_busca:
+                    sugestoes.append((email, nome))
+
+            if sugestoes:
+                st.caption("Sugestões de menção")
+
+                colunas_sugestoes = st.columns(min(len(sugestoes), 4))
+
+                for indice, (email, nome) in enumerate(sugestoes[:4]):
+                    with colunas_sugestoes[indice % len(colunas_sugestoes)]:
+                        if st.button(f"@{nome}", key=f"sugerir_mencao_{ticket['id']}_{email}", use_container_width=True):
+                            antes = texto_atual[:posicao_mencao]
+                            depois = texto_atual[posicao_mencao + 1 + len(termo_mencao):]
+                            st.session_state[comentario_key] = f"{antes}@{nome} {depois.lstrip()}"
+                            st.rerun()
+
+        col_envio1, col_envio2 = st.columns([1, 4])
+
+        with col_envio1:
+            enviar_comentario = st.button(
+                "Enviar",
+                key=f"enviar_comentario_{ticket['id']}",
+                type="primary",
+                use_container_width=True,
+            )
+
+        novo_comentario = st.session_state.get(comentario_key, "").strip()
+
+        if enviar_comentario and novo_comentario:
             anexos_comentario = salvar_uploads(arquivos_comentario)
 
-            texto_comentario = novo_comentario.strip()
+            texto_comentario = novo_comentario
             mencoes = mencoes_no_texto(texto_comentario)
 
             ticket["comentarios"].append(
@@ -1557,12 +1618,12 @@ def painel_ticket():
             atualizar_ticket_nuvem(ticket)
             preparar_notificacao(ticket, "Novo comentário", nome_para_notificacao(ticket))
             sincronizar_ticket_local(ticket)
+            st.session_state[comentario_key] = ""
             st.session_state.uploader_key += 1
             st.rerun()
 
         if arquivos_comentario and not novo_comentario:
-            st.caption("Digite uma mensagem e pressione Enter para enviar junto com os anexos.")
-
+            st.caption("Digite uma mensagem e clique em Enviar para enviar junto com os anexos.")
         st.markdown("#### Histórico")
         historico = ticket.get("historico", [])
 
